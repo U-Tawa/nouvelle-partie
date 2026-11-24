@@ -247,19 +247,27 @@
       j.igdb = id;
       if (!j.demo && rpgDouteux(g, e)) j.rpgDouteux = true;
       // Ce que les joueurs n'appellent pas un RPG, même si IGDB le dit (vérifié sur les 160 « RPG » les plus connus).
-      if ((j.tags || []).includes('RPG') && /^(?:bioshock|red dead|dishonored|metro (?:2033|last light|exodus)|prey\b|dying light|god of war|star wars: the force unleashed|darksiders|oxenfree|payday|marvel rivals|marvel's guardians|spore|x-?com|heroes of might|might & magic: heroes|blasphemous|the binding of isaac|to the moon|the sims|fallout shelter|pok[eé]mon go|assassin's creed(?:$| ii| iii| iv| brotherhood| revelations| unity| rogue| syndicate| black flag|: director)|middle-earth: shadow|castle crashers|ghost of (?:tsushima|y[oō]tei)|shenmue|[oō]kami|star citizen)/i.test(nom)) {
+      if ((j.tags || []).includes('RPG') && /^(?:bioshock|red dead|dishonored|metro (?:2033|last light|exodus)|prey\b|dying light|god of war|star wars: the force unleashed|darksiders|oxenfree|payday|marvel rivals|marvel's guardians|spore|x-?com|heroes of might|might & magic: heroes|blasphemous|the binding of isaac|to the moon|the sims|fallout shelter|pok[eé]mon go|assassin's creed(?:$| ii| iii| iv| brotherhood| revelations| unity| rogue| syndicate| black flag|: director)|middle-earth: shadow|castle crashers|ghost of (?:tsushima|y[oō]tei)|shenmue|[oō]kami|star citizen|maneater)/i.test(nom)) {
         j.tags = j.tags.filter((x) => x !== 'RPG');
         j.rpgDouteux = true;
         if (!j.demo) j.genre = genreAffiche(g, t, true);
       }
+      if ((j.tags || []).includes('Énigmes') && (j.tags || []).includes('Vue FPS')) j.tags = j.tags.filter((x) => x !== 'Plateforme'); // Portal n'est pas un jeu de plateforme
+      if ((j.tags || []).includes('Plateforme') && /assassin's creed|uncharted|god of war|infamous|batman: arkham|spider-man|shadow of the colossus|darksiders|the last of us|^horizon|tomb raider|grand theft auto|red dead|far cry|zelda|metal gear|ghost of|sekiro|devil may cry|bayonetta|hellblade/i.test(nom)) j.tags = j.tags.filter((x) => x !== 'Plateforme'); // un jeu d'action-aventure, pas un jeu de plateforme
+      if (/^among us|goose goose duck|lockdown protocol|project winter|dread hunger|feign\b|town of salem|werewolf/i.test(nom)) { j.tags = (j.tags || []).filter((x) => x !== 'Stratégie'); j.deduction = true; } // un jeu de soirée à imposteur, pas StarCraft
+      if ((j.tags || []).includes('Horreur') && /^batman: arkham/i.test(nom)) j.tags = j.tags.filter((x) => x !== 'Horreur');
+      if ((j.tags || []).includes('Horreur') && /^(?:the ultimate )?doom\b/i.test(nom) && !/doom 3|doom iii/i.test(nom)) j.tags = j.tags.filter((x) => x !== 'Horreur');
+      if ((j.tags || []).includes('Énigmes') && ['Plateforme', 'Action'].every((x) => j.tags.includes(x)) && !/portal|talos|braid|\bfez\b|^inside$|^limbo$|trine|captain toad|unravel|little nightmares|it takes two|split fiction/i.test(nom)) { j.tags = j.tags.filter((x) => x !== 'Énigmes'); j.enigmesSecondaires = true; }
       // « Un jeu d'énigmes » : Portal ou The Witness, pas Zelda, Resident Evil ni Half-Life (IGDB met « puzzle » partout).
       if ((j.tags || []).includes('Énigmes') && !/portal|talos|antichamber|superliminal|turing test|q\.?u\.?b\.?e|the witness|baba is you|braid|\bfez\b|^inside$|^limbo$/i.test(nom)
-        && ((j.tags || []).some((x) => ['Tir', 'Horreur', "Beat'em all", 'RPG', 'Monde ouvert', 'Soulslike'].includes(x)) || /zelda|assassin's creed|tomb raider|god of war|uncharted|prince of persia|darksiders|infamous|^lego|shadow of the colossus|mirror's edge|beyond good|alice: madness|the last guardian|okami|ōkami|metroid/i.test(nom))) j.tags = j.tags.filter((x) => x !== 'Énigmes');
+        && ((j.tags || []).some((x) => ['Tir', 'Horreur', "Beat'em all", 'RPG', 'Monde ouvert', 'Soulslike'].includes(x)) || /zelda|assassin's creed|tomb raider|god of war|uncharted|prince of persia|darksiders|infamous|^lego|shadow of the colossus|mirror's edge|beyond good|alice: madness|the last guardian|okami|ōkami|metroid/i.test(nom))) { j.tags = j.tags.filter((x) => x !== 'Énigmes'); j.enigmesSecondaires = true; } // retiré des « jeux d'énigmes », gardé pour rapprocher deux Zelda
       // Un hack'n'slash à la Diablo : Path of Exile, Grim Dawn, Titan Quest.
       if (g.includes('Role-playing (RPG)') && g.includes("Hack and slash/Beat 'em up") && e.includes('vue-iso')) j.diablo = true;
       if (e.includes('nft')) j.fan = true; // jeux à jetons : jamais proposés, comme les jeux de fans
       if (e.includes('vr-seul')) j.vrSeul = true;
       j.sujets = sujetsIgdb(t, e);
+      // Les grands jeux « tout public » mignons de Nintendo et consorts (IGDB ne le dit pas) : Mario Odyssey va avec Astro Bot, pas avec Prototype.
+      if (/^(?:super )?mario\b|^new super mario|\bkirby\b|\byoshi\b|donkey kong|sackboy|astro bot|astro's playroom|crash bandicoot|^spyro|^rayman|banjo|yooka|a hat in time|ratchet|captain toad|pikmin|animal crossing|luigi's mansion|\btoad\b|sonic (?:mania|frontiers|generations|colors|forces|superstars|adventure)|psychonauts|tearaway|little big planet|littlebigplanet/i.test(nom) && !j.sujets.includes('mignon')) j.sujets.push('mignon');
       // Les soulslike qu'IGDB oublie (Demon's Souls, Bloodborne…).
       if (/\b(?:dark souls|demon's souls|bloodborne|sekiro|elden ring|lies of p|nioh|mortal shell|lords of the fallen|salt and sanctuary|code vein|the surge)\b/i.test(nom) && !(j.tags || []).includes('Soulslike')) j.tags = [...(j.tags || []), 'Soulslike'];
       // Les séries japonaises qu'IGDB ne marque pas « JRPG » (Grandia, Shining Force…) : pas des RPG occidentaux.
@@ -300,6 +308,7 @@
         && !(t.includes('Action') && !g.some((x) => ['Strategy', 'Tactical', 'Turn-based strategy (TBS)'].includes(x))) && !(dureeJ && dureeJ < 15)) plus.push('crpg');
       j.sujets = [...new Set([...j.sujets, ...plus])];
       j.inde = g.includes('Indie');
+      if (m.some((x) => /MMO/.test(x))) j.mmo = true;
       if (g.filter((x) => x !== 'Indie').length >= 6 && (nbNotes || 0) < 150) j.fourreTout = true;
       if ((j.tags || []).includes('Gestion') && /flight sim|truck sim|train sim|bus sim|ship sim|euro truck|american truck|x-plane|\bdcs\b|car mechanic|powerwash|house flipper|goat simulator|surgeon simulator|job simulator|my summer car|construction simulator|farming simulator 1[0-9]? ?$/i.test(nom) && !/farming simulator/i.test(nom)) j.tags = j.tags.filter((x) => x !== 'Gestion');
       if (e.includes('fangame') && !/black mesa|touhou|holocure/i.test(nom)) j.fan = true; // Black Mesa ou Touhou Luna Nights sont vendus officiellement // les jeux de fans (Pokémon Infinite Fusion) : on ne les propose pas
@@ -315,6 +324,10 @@
       if (e.includes('en-ligne')) j.jSet.enLigne = true;
       if (jx.pvp >= 2) j.tags = [...new Set([...(j.tags || []), 'PvP'])]; // pour « comme Valorant » : d'autres jeux compétitifs
       if (e.includes('gratuit') || GRATUITS_STEAM.has(id)) j.gratuit = true;
+      // Steam ou IGDB disent « gratuit » pour un premier épisode offert, une démo ou un vieux freeware introuvable : dans le doute, on ne l'affiche pas.
+      if (j.gratuit && /^(?:life is strange(?: 2)?|the stanley parable|plants vs\. zombies|f\.e\.a\.r\.|grand theft auto(?: 2)?|injustice: gods among us|command & conquer(?:: tiberian sun)?|angry birds|simcity|re-volt|unreal tournament iii|ratchet & clank: into the nexus|the suffering|thehunter: call of the wild|tell me why|the council|shadow warrior|europa universalis iv|broken sword: the smoking mirror)$/i.test(nom)) j.gratuit = false;
+      // Les jeux en ligne dont les serveurs ont fermé : on n'en propose jamais.
+      if (/^(?:xdefiant|dauntless|need for speed: world|animal crossing: pocket camp|concord|anthem|multiversus|knockout city|spellbreak|rumbleverse|hyper scape|crucible|the cycle: frontier|babylon's fall|crossfirex|lawbreakers|paragon|battleborn|evolve|the culling|warhaven|hyenas|elyon|bleeding edge|catalyst black|apex legends mobile|battlefield heroes|tom clancy's xdefiant|counter-strike: global offensive)$/i.test(nom) || (/^overwatch$/i.test(nom) && annee < 2020)) j.ferme = true; // CS:GO et Overwatch (2016) ont été remplacés par leur suite
       j.series = series || [];
       j.note = (nbNotes || 0) >= 5 ? note : 0; // « 80/100 » sur une seule note ne veut rien dire
       j.nbNotes = nbNotes;
@@ -404,7 +417,16 @@
   const JEUX_SERIE = SERIES.map(() => []);
   TOUS.forEach((j) => (j.series || []).forEach((i) => JEUX_SERIE[i] && dansSerie(j, i) && JEUX_SERIE[i].push(j)));
   JEUX_SERIE.forEach((l) => l.sort((a, b) => (a.annee || 9999) - (b.annee || 9999)));
-  const PAR_POPULARITE = [...TOUS].filter((j) => !j.fan).sort((a, b) => (b.populaire || 0) - (a.populaire || 0)); // sans les jeux de fans (on ne les propose jamais)
+  // Un même titre en double (portage, réédition au même nom, « Super Mario Galaxy 2 » 2025) : seule la version connue est proposée.
+  {
+    const parNom = new Map();
+    for (const j of TOUS) { const t = parNom.get(j._n); if (!t || (j.populaire || 0) > (t.populaire || 0)) parNom.set(j._n, j); }
+    for (const j of TOUS) { const t = parNom.get(j._n); if (t !== j && (j.populaire || 0) < 100 && (j.populaire || 0) * 5 < (t.populaire || 0)) j.doublon = true; }
+    // Un jeu sans date de sortie, ou daté de l'an prochain, n'est pas encore sorti : on ne le propose pas.
+    const an = new Date().getFullYear();
+    for (const j of TOUS) if (!j.demo && (!j.annee || j.annee > an)) j.ferme = true;
+  }
+  const PAR_POPULARITE = [...TOUS].filter((j) => !j.fan && !j.doublon && !j.ferme).sort((a, b) => (b.populaire || 0) - (a.populaire || 0)); // sans les jeux de fans (on ne les propose jamais)
   // Une note donnée par 30 personnes ne vaut pas une note donnée par 3 000 : tant qu'il y a peu de notes,
   // on la rapproche de la moyenne (sinon « American Chopper » passe devant Zelda).
   const noteFiable = (j) => (j.note ? ((j.nbNotes || 0) * j.note + 120 * 70) / ((j.nbNotes || 0) + 120) : j.verdicts ? j.verdicts[0] : 0);
@@ -498,7 +520,7 @@
   function sauver() { ecrireLocal(CLE_JOURNAL, journal); majEntete(); }
   function majEntete() {
     const n = Object.keys(journal.finis).length;
-    $('#nb-journal').textContent = n ? String(n) : '';
+    $$('.nb-journal').forEach((x) => { x.textContent = n ? String(n) : ''; });
     const lien = $('#lien-compte');
     if (compte) { lien.textContent = compte.pseudo; lien.href = '#/journal'; lien.classList.add('connecte'); lien.setAttribute('aria-label', `Connecté : ${compte.pseudo}, voir mon journal`); }
     else { lien.textContent = 'Se connecter'; lien.href = '#/connexion'; lien.classList.remove('connecte'); lien.removeAttribute('aria-label'); }
@@ -612,12 +634,12 @@
   }
 
   /* ---------- La lampe ---------- */
-  // Sur ordinateur, la lumière suit la souris. Sur téléphone, elle suit le doigt, puis l'inclinaison du téléphone
-  // (ou le défilement, si on n'a pas accès à l'inclinaison) : la salle obscure doit vivre aussi dans la main.
+  // Sur ordinateur, la lumière suit la souris. Sur téléphone, personne ne doit poser le doigt : la lampe vit seule
+  // (elle balance doucement, comme une ampoule au bout de son fil), descend quand on fait défiler la page,
+  // et suit l'inclinaison du téléphone quand Android la donne. Rien n'est jamais plus sombre faute de doigt.
   const tactile = matchMedia('(hover: none), (pointer: coarse)');
   const lampesVues = new Set();
   let incline = null; // dernière inclinaison du téléphone, en % de l'image
-  let doigtJusque = 0; // le doigt garde la main sur l'inclinaison quelques secondes
 
   function activerLampes(racine = document) {
     $$('[data-lampe]', racine).forEach((el) => {
@@ -632,56 +654,53 @@
         raf = Math.abs(tx - x) > 0.05 || Math.abs(ty - y) > 0.05 ? requestAnimationFrame(pas) : 0;
       };
       const viser = (nx, ny) => { tx = Math.max(4, Math.min(96, nx)); ty = Math.max(4, Math.min(96, ny)); if (!raf) raf = requestAnimationFrame(pas); };
-      const auDoigt = (cx, cy) => { const r = el.getBoundingClientRect(); viser(((cx - r.left) / r.width) * 100, ((cy - r.top) / r.height) * 100); };
-      el.addEventListener('pointermove', (e) => { if (e.pointerType === 'mouse') auDoigt(e.clientX, e.clientY); });
+      el.addEventListener('pointermove', (e) => { if (e.pointerType !== 'mouse') return; const r = el.getBoundingClientRect(); viser(((e.clientX - r.left) / r.width) * 100, ((e.clientY - r.top) / r.height) * 100); });
       el.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse') viser(62, 38); });
-      // Le doigt promène la lampe sur l'image.
-      const toucher = (e) => { const t = e.touches[0]; if (!t) return; doigtJusque = Date.now() + 2500; auDoigt(t.clientX, t.clientY); };
-      el.addEventListener('touchstart', toucher, { passive: true });
-      el.addEventListener('touchmove', toucher, { passive: true });
-      el.addEventListener('touchend', demanderInclinaison, { passive: true });
-      // Sans doigt ni inclinaison : la lumière descend doucement quand l'image remonte.
+      // Sur téléphone : le balancement, le défilement et l'inclinaison décident ensemble où tombe la lumière.
       el._lampe = {
         el,
-        repos() {
-          if (Date.now() < doigtJusque) return;
-          if (incline) { viser(incline.x, incline.y); return; }
-          if (!tactile.matches) return;
+        vers(t) {
           const r = el.getBoundingClientRect();
-          viser(62, 34 + Math.max(0, Math.min(1, -r.top / Math.max(1, r.height))) * 40);
+          if (r.bottom < 0 || r.top > innerHeight) return;
+          const defile = Math.max(0, Math.min(1, -r.top / Math.max(1, r.height)));
+          const bx = incline ? incline.x : 60, by = incline ? incline.y : 34 + defile * 36;
+          viser(bx + Math.sin(t / 2300) * 16 + Math.sin(t / 900) * 2.5, by + Math.cos(t / 3100) * 9);
         },
       };
       lampesVues.add(el._lampe);
       // La lumière s'allume quand l'image arrive.
       if (!reduit.matches) { el.classList.add('eteinte'); requestAnimationFrame(() => requestAnimationFrame(() => el.classList.remove('eteinte'))); }
+      balancer();
     });
     lampesVues.forEach((l) => { if (!l.el.isConnected) lampesVues.delete(l); });
   }
-  const lampesAuRepos = () => lampesVues.forEach((l) => l.el.isConnected ? l.repos() : lampesVues.delete(l));
-  addEventListener('scroll', lampesAuRepos, { passive: true });
+  // Le balancement ne tourne que sur téléphone, quand une grande image est à l'écran, et jamais page cachée.
+  let rafBalance = 0;
+  function balancer() {
+    if (rafBalance || !tactile.matches || reduit.matches) return;
+    const tour = (t) => {
+      rafBalance = 0;
+      lampesVues.forEach((l) => (l.el.isConnected ? l.vers(t) : lampesVues.delete(l)));
+      if (lampesVues.size && !document.hidden) rafBalance = requestAnimationFrame(tour);
+    };
+    rafBalance = requestAnimationFrame(tour);
+  }
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) balancer(); });
 
-  // L'inclinaison du téléphone déplace la lumière. Android la donne tout de suite ; l'iPhone la demande une fois,
-  // quand on touche une grande image (jamais au chargement de la page).
-  function suivreInclinaison() {
+  // L'inclinaison du téléphone déplace la lumière, là où le navigateur la donne sans rien demander (Android).
+  // Sur iPhone il faudrait une autorisation : on ne la demande pas, le balancement suffit.
+  if (tactile.matches && window.DeviceOrientationEvent && typeof DeviceOrientationEvent.requestPermission !== 'function') {
     addEventListener('deviceorientation', (e) => {
-      if (e.gamma == null || e.beta == null || reduit.matches || !tactile.matches) return;
-      incline = { x: 50 + Math.max(-30, Math.min(30, e.gamma)) * 1.4, y: 40 + Math.max(-25, Math.min(25, e.beta - 50)) * 1.3 };
-      lampesAuRepos();
+      if (e.gamma == null || e.beta == null || reduit.matches) return;
+      incline = { x: 50 + Math.max(-30, Math.min(30, e.gamma)) * 1.3, y: 38 + Math.max(-25, Math.min(25, e.beta - 50)) * 1.1 };
     }, { passive: true });
   }
-  let inclinaisonDemandee = false;
-  function demanderInclinaison() {
-    if (inclinaisonDemandee || reduit.matches) return;
-    inclinaisonDemandee = true;
-    const D = window.DeviceOrientationEvent;
-    if (D && typeof D.requestPermission === 'function') D.requestPermission().then((r) => { if (r === 'granted') suivreInclinaison(); }).catch(() => {});
-  }
-  if (tactile.matches && window.DeviceOrientationEvent && typeof DeviceOrientationEvent.requestPermission !== 'function') suivreInclinaison();
 
-  // Les jaquettes s'allument près de la lumière : sous la souris sur ordinateur, au centre de l'écran
-  // (ou sous le doigt) sur téléphone, quand on fait défiler une étagère ou la page.
+  // Les jaquettes : sur ordinateur, elles s'allument sous la souris. Sur téléphone, elles restent bien éclairées ;
+  // celle qui passe au centre de l'écran (ou de son étagère) reçoit un halo chaud, et chacune prend un reflet
+  // de lumière la première fois qu'elle apparaît.
   const jaquettesVisibles = new Set();
-  let obsJaquettes = null, pointLumiere = null, rafJaquettes = 0;
+  let obsJaquettes = null, obsReflets = null, pointLumiere = null, rafJaquettes = 0;
   function eclairerJaquettes() {
     if (rafJaquettes) return;
     rafJaquettes = requestAnimationFrame(() => {
@@ -689,11 +708,12 @@
       const tact = tactile.matches;
       if (!tact && !pointLumiere) return;
       const px = pointLumiere ? pointLumiere.x : innerWidth / 2, py = pointLumiere ? pointLumiere.y : innerHeight * 0.45;
-      const R = tact ? Math.max(170, innerHeight * 0.34) : 360;
+      // Sur téléphone, une zone ovale au milieu de l'écran (plus haute que large) ; sur ordinateur, un cercle autour de la souris.
+      const Rx = tact ? Math.max(130, innerWidth * 0.4) : 360, Ry = tact ? Math.max(200, innerHeight * 0.36) : 360;
       jaquettesVisibles.forEach((c) => {
         if (!c.isConnected) { jaquettesVisibles.delete(c); return; }
         const r = (c.firstElementChild || c).getBoundingClientRect();
-        const e = Math.max(0, 1 - Math.hypot(r.left + r.width / 2 - px, r.top + r.height / 2 - py) / R);
+        const e = Math.max(0, 1 - Math.hypot((r.left + r.width / 2 - px) / Rx, (r.top + r.height / 2 - py) / Ry));
         c.style.setProperty('--e', e.toFixed(2));
       });
     });
@@ -705,11 +725,21 @@
         entrees.forEach((en) => { if (en.isIntersecting) jaquettesVisibles.add(en.target); else jaquettesVisibles.delete(en.target); });
         eclairerJaquettes();
       }, { rootMargin: '150px' });
+      // Le reflet : une seule fois par jaquette, quand elle entre vraiment à l'écran, en cascade.
+      obsReflets = new IntersectionObserver((entrees) => {
+        let n = 0;
+        entrees.forEach((en) => {
+          if (!en.isIntersecting) return;
+          obsReflets.unobserve(en.target);
+          en.target.style.setProperty('--d', Math.min(n++, 6) * 90 + 'ms');
+          en.target.classList.add('reflet');
+        });
+      }, { threshold: 0.55 });
       document.documentElement.classList.add('jaquettes-lumiere');
       addEventListener('scroll', eclairerJaquettes, { passive: true, capture: true }); // aussi les étagères qui défilent sur le côté
       addEventListener('resize', eclairerJaquettes, { passive: true });
     }
-    $$('.cover', racine).forEach((c) => { if (!c.dataset.lumiere) { c.dataset.lumiere = '1'; obsJaquettes.observe(c); } });
+    $$('.cover', racine).forEach((c) => { if (!c.dataset.lumiere) { c.dataset.lumiere = '1'; obsJaquettes.observe(c); obsReflets.observe(c); } });
   }
   // Tout ce qui apparaît dans la page (nouvelle page, résultats d'une envie) profite de la lumière.
   let attenteLumiere = 0;
@@ -718,13 +748,13 @@
     attenteLumiere = requestAnimationFrame(() => { attenteLumiere = 0; const m = $('#main'); if (m) { activerLampes(m); suivreJaquettes(m); eclairerJaquettes(); } });
   }).observe(document.getElementById('main') || document.body, { childList: true, subtree: true });
 
-  // La même lampe, mais pour toute la page : elle suit la souris partout, même quand on descend.
-  // Sur téléphone, elle suit le doigt pendant qu'il touche l'écran, puis s'éteint doucement.
+  // Sur ordinateur, la même lampe pour toute la page : elle suit la souris partout, même quand on descend.
+  // Sur téléphone, pas de pièce assombrie : la page reste claire, la lumière vit dans les images et les jaquettes.
   function lampeGlobale() {
     const el = $('#lampe-globale');
-    if (!el) return;
+    if (!el || !matchMedia('(hover: hover) and (pointer: fine)').matches) return;
     const calquesLampe = $$('.lg', el);
-    let tx = 0, ty = 0, x = 0, y = 0, raf = 0, vue = false, extinction = 0;
+    let tx = 0, ty = 0, x = 0, y = 0, raf = 0, vue = false;
     const poser = () => { const t = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0)`; calquesLampe.forEach((c) => { c.style.transform = t; }); };
     const pas = () => {
       const k = reduit.matches ? 1 : 0.2;
@@ -733,31 +763,17 @@
       poser();
       raf = Math.abs(tx - x) > 0.4 || Math.abs(ty - y) > 0.4 ? requestAnimationFrame(pas) : 0;
     };
-    const allumer = (cx, cy, saut) => {
-      tx = cx; ty = cy;
-      if (saut || !vue) { vue = true; x = tx; y = ty; poser(); }
+    addEventListener('pointermove', (e) => {
+      if (e.pointerType !== 'mouse') return;
+      if (!vue) { vue = true; document.documentElement.classList.add('lampe-active'); x = tx = e.clientX; y = ty = e.clientY; poser(); }
+      tx = e.clientX; ty = e.clientY;
       el.classList.add('on');
-      pointLumiere = { x: cx, y: cy };
+      pointLumiere = { x: tx, y: ty };
       eclairerJaquettes();
       if (!raf) raf = requestAnimationFrame(pas);
-    };
-    if (matchMedia('(hover: hover) and (pointer: fine)').matches) {
-      addEventListener('pointermove', (e) => {
-        if (e.pointerType !== 'mouse') return;
-        if (!vue) document.documentElement.classList.add('lampe-active');
-        allumer(e.clientX, e.clientY);
-      }, { passive: true });
-      document.documentElement.addEventListener('mouseleave', () => el.classList.remove('on'));
-      addEventListener('blur', () => el.classList.remove('on'));
-    } else if (!reduit.matches) {
-      el.classList.add('tactile');
-      const doigt = (e, saut) => { const t = e.touches[0]; if (!t) return; clearTimeout(extinction); allumer(t.clientX, t.clientY, saut); };
-      addEventListener('touchstart', (e) => doigt(e, true), { passive: true });
-      addEventListener('touchmove', (e) => doigt(e, false), { passive: true });
-      addEventListener('touchend', () => {
-        extinction = setTimeout(() => { el.classList.remove('on'); pointLumiere = null; eclairerJaquettes(); }, 650);
-      }, { passive: true });
-    }
+    }, { passive: true });
+    document.documentElement.addEventListener('mouseleave', () => el.classList.remove('on'));
+    addEventListener('blur', () => el.classList.remove('on'));
   }
 
   /* ---------- Recommandation après un jeu fini ---------- */
@@ -788,18 +804,27 @@
   };
   // Le style (pixel art, rétro, belle musique) rapproche moins que le jeu lui-même : Celeste n'est pas « comme Undertale ».
   const STYLE = new Set(['pixel', 'retro', 'bandeson', 'dessin', 'mignon']);
-  const proximite = (a, b) => (a.tags || []).filter((t) => t !== 'Coop' && (b.tags || []).includes(t)).reduce((s, t) => s + (RARETE[t] || 0), 0)
+  // La vue (première personne, de dessus, de côté) rapproche peu, sauf pour un jeu de tir : Kingdom Come n'est pas « comme Voidtrain ».
+  const VUES = new Set(['Vue FPS', 'Vue iso', 'Vue 2D']);
+  // « Survie » ou « bac à sable » d'IGDB : un thème large (Tomb Raider en a), qui ne compte vraiment qu'entre deux jeux de survie ou de construction.
+  const THEMES_LARGES = new Set(['survie', 'sandbox']);
+  const memeFamille = (a, b) => ['Monde ouvert', 'Gestion'].some((t) => (a.tags || []).includes(t) && (b.tags || []).includes(t));
+  // Des énigmes « de fond » (Zelda) rapprochent deux Zelda, pas un Zelda d'un vrai jeu d'énigmes.
+  const poidsTag = (a, b, t) => (VUES.has(t) && !(a.tags || []).includes('Tir') ? 0.4 : 1);
+  const proximite = (a, b) => (a.tags || []).filter((t) => t !== 'Coop' && (b.tags || []).includes(t)).reduce((s, t) => s + (RARETE[t] || 0) * poidsTag(a, b, t), 0) + (a.enigmesSecondaires && b.enigmesSecondaires ? (RARETE['Énigmes'] || 0) * 0.6 : 0)
     + (a.sujetsForts || []).filter((x) => !STYLE.has(x) && (b.sujetsForts || []).includes(x)).length * 1.5
-    + (a.sujets || []).filter((x) => !SUJETS_TROP_COURANTS.has(x) && (b.sujets || []).includes(x)).reduce((s, k) => s + (RARETE_SUJET[k] || 0.5) * (STYLE.has(k) ? 0.5 : 1), 0)
+    + (a.sujets || []).filter((x) => !SUJETS_TROP_COURANTS.has(x) && (b.sujets || []).includes(x)).reduce((s, k) => s + (RARETE_SUJET[k] || 0.5) * (STYLE.has(k) || (THEMES_LARGES.has(k) && !memeFamille(a, b)) ? 0.5 : 1), 0)
     - ecartRpg(a, b);
   // Ce qui définit un jeu pour un joueur : « comme The Witness », c'est un jeu d'énigmes avant tout, pas BioShock.
   const IDENTITES = ['Énigmes', 'Soulslike', 'Metroidvania', 'Roguelite', 'Cartes', 'Rythme', 'Combat', 'Course', 'Sport', 'Gestion', 'Stratégie', 'MOBA', 'Battle royale', 'RPG', 'Plateforme', 'Horreur'];
-  const identite = (j) => (j.tags || []).filter((t) => IDENTITES.includes(t)).sort((x, y) => (RARETE[y] || 0) - (RARETE[x] || 0))[0];
+  // « Plateforme » ne définit pas un jeu d'action-aventure (Tomb Raider, Assassin's Creed, Portal) : seulement un vrai jeu de plateforme.
+  const PLATEFORME_SECONDAIRE = ['Tir', 'RPG', "Beat'em all", 'Horreur', 'Énigmes'];
+  const identite = (j) => (j.tags || []).filter((t) => IDENTITES.includes(t) && !(t === 'Plateforme' && (j.tags || []).some((x) => PLATEFORME_SECONDAIRE.includes(x)))).sort((x, y) => (RARETE[y] || 0) - (RARETE[x] || 0))[0];
   // Et le sujet qui le définit, quand il en a un : « comme Factorio », c'est une usine ; « comme Baldur's Gate 3 », un CRPG.
   const SUJETS_IDENTITE = ['automatisation', 'colonie', 'deckbuilder', 'citybuilder', 'survivalhorror', 'boomer', 'pointclick', '4x', 'crpg', 'diablolike'];
   const identiteSujet = (j) => (j.sujets || []).filter((k) => SUJETS_IDENTITE.includes(k)).sort((x, y) => (RARETE_SUJET[y] || 0) - (RARETE_SUJET[x] || 0))[0];
   // Les genres qui changent tout : un FPS, un RPG ou un jeu d'horreur ne se joue pas comme The Witness.
-  const GENRES_LOURDS = ['Tir', 'RPG', 'Horreur', 'Combat', 'Course', 'Sport', 'Stratégie', 'Gestion', 'Cartes', 'Rythme', 'MOBA', 'Battle royale', 'Monde ouvert', 'Roguelite', 'Soulslike'];
+  const GENRES_LOURDS = ['Tir', 'RPG', 'Horreur', "Beat'em all", 'Combat', 'Course', 'Sport', 'Stratégie', 'Gestion', 'Cartes', 'Rythme', 'MOBA', 'Battle royale', 'Monde ouvert', 'Roguelite', 'Soulslike'];
   // Les jeux proches d'un jeu : les suites des joueurs, puis les « jeux similaires » d'IGDB qui partagent vraiment
   // quelque chose avec lui (IGDB met parfois un jeu de cuisine à côté d'Avowed), complétés par les jeux connus
   // de la même famille. Les jeux de la même série sont à part (ils ont leur étagère).
@@ -811,11 +836,13 @@
     const sim = new Set(((f && f.sim) || []).map((n) => DEPUIS_IGDB[n]).filter(Boolean));
     // Les « similaires » d'IGDB ont un petit bonus, mais un jeu connu et vraiment proche passe devant un inconnu.
     const candidats = new Set([...sim, ...PAR_POPULARITE.slice(0, 3000).map((c) => c.id)]);
+    const idJ = identite(j), idSJ = identiteSujet(j), tagsJ = (j.tags || []).filter((t) => t !== 'Coop');
     candidats.forEach((id) => {
       const c = PAR_ID[id];
-      if (!c || vus.has(id) || (c.fan && !j.fan)) return;
+      if (!c || vus.has(id) || c.doublon || c.ferme || (c.fan && !j.fan)) return;
       const p = proximite(j, c);
-      if (p >= seuil || (sim.has(id) && p >= Math.max(1, seuil * 0.5))) res.push([p * 2 + Math.log10((c.populaire || 0) + 1) * 2 + (sim.has(id) ? 6 : 0), c]);
+      // Les mêmes garde-fous que partout : pas The Elder Scrolls II (1996) « dans la même veine » que Kingdom Come 2.
+      if (p >= seuil || (sim.has(id) && p >= Math.max(1, seuil * 0.5))) res.push([p * 2 + Math.log10((c.populaire || 0) + 1) * 2 + (sim.has(id) ? 6 : 0) - ecartAvec(j, c, idJ, idSJ, tagsJ) * 0.5, c]);
     });
     return res.sort((a, b) => b[0] - a[0]).map((x) => x[1]).slice(0, max);
   }
@@ -831,13 +858,14 @@
     const negatif = e.v >= 2;
     const baseTop = topHum(base, 2);
     const tc = titreCourt(base);
+    const idB = identite(base), idSB = identiteSujet(base), tagsB = (base.tags || []).filter((t) => t !== 'Coop');
     // Ce qui change par rapport au jeu fini : la durée, quand l'écart est net.
     const ecart = (c) => (c.histoire && base.histoire ? (c.histoire <= base.histoire * 0.6 ? `, en plus court (~${c.histoire} h)` : c.histoire >= base.histoire * 1.6 ? `, en plus long (~${c.histoire} h)` : '') : '');
     const res = [];
     for (const c of TOUS) {
       // Tout le catalogue peut sortir (plus seulement les 4 000 jeux les plus connus), sauf la réalité virtuelle
       // seule quand le jeu fini n'en était pas.
-      if (exclus.has(c.id) || (c.fan && !base.fan) || (!baseVR && vrSeulement(c))) continue;
+      if (exclus.has(c.id) || c.doublon || c.ferme || (c.fan && !base.fan) || (!baseVR && vrSeulement(c))) continue;
       let s = 0;
       let raison, court;
       const communs = (c.tags || []).filter((t) => (base.tags || []).includes(t) && t !== 'Coop').sort((x, y) => (RARETE[y] || 0) - (RARETE[x] || 0));
@@ -858,14 +886,18 @@
         const suite = suitesJoueurs.has(c.id);
         const proche = proches.has(c.id);
         if (suite) s += 3;
-        if (proche) s += 3;
-        s += pop * 0.6;
+        if (proche) s += 5;
+        // La suite d'une série (Doom → Doom Eternal), si elle est connue et ressemble au jeu fini : c'est souvent ce qu'on lance ensuite.
+        if (!suite && c.annee > (base.annee || 9999) && c.annee - base.annee <= 12 && (c.populaire || 0) >= 30 && (base.series || []).some((i) => (c.series || []).includes(i))
+          && (!idB || (c.tags || []).includes(idB)) && proximite(base, c) >= 3) s += 4;
+        s += pop * 1.2; // un jeu connu et bien noté passe devant un inconnu qui coche les mêmes cases
+        if (!suite && (c.populaire || 0) < 20) s -= (20 - (c.populaire || 0)) / 2; // presque personne ne l'a noté : on ne le met pas en tête (Youtubers Life 2 après Les Sims)
         // Après un jeu de 2019, pas un jeu de 1990 : plus il est vieux par rapport au jeu fini, moins il remonte
         // (rien jusqu'à 8 ans d'écart, puis de plus en plus ; les jeux plus récents ne sont jamais pénalisés).
-        if (!suite) s -= retardEpoque(base, c) * 0.4;
+        if (!suite) s -= ecartAvec(base, c, idB, idSB, tagsB) * 0.4 + retardEpoque(base, c) * 0.6; // l'époque compte autant que dans « comme… »
         const humVise = hum.find((h) => ((c.hum || {})[h] || 0) >= 20);
         if (fort) { court = cap(c.forts[fort]) + '.'; raison = `Tu as aimé ${FORTS[fort]} dans ${tc}. ${court}`; }
-        else if (suite) { raison = `Après ${tc}, c'est la suite qu'on te conseille.`; court = `À lancer juste après ${tc}.`; }
+        else if (suite) { raison = `Après ${tc}, c'est celui qu'on te conseille en premier.`; court = `À lancer juste après ${tc}.`; }
         else if (proche) { raison = `Dans la même veine que ${tc}${ecart(c)}.`; court = raison; }
         else if (humVise) { raison = c.humEstime ? `Comme ${tc}, un jeu pour ${HUM[humVise]}.` : `Comme ${tc}, un jeu pour ${HUM[humVise]} : ${c.hum[humVise]} % des joueurs le disent.`; court = cap(`un jeu pour ${HUM[humVise]}.`); }
         else if (communs.length) { raison = `De la même famille que ${tc} : ${LIBELLE_TYPE[communs[0]] || communs[0]}${ecart(c)}.`; court = cap((LIBELLE_TYPE[communs[0]] || communs[0]) + ecart(c)) + '.'; }
@@ -875,7 +907,24 @@
     }
     // Une seule version de chaque jeu, et pas une autre version du jeu fini (Disco Elysium puis Disco Elysium: The Final Cut).
     const garde = new Set(uneVersion(res.sort((a, b) => b.s - a.s).map((x) => x.j), base).map((c) => c.id));
-    return res.filter((x) => garde.has(x.j.id)).slice(0, 60);
+    // Un seul jeu par titre, même à des années d'écart (Demon's Souls 2009 ou son remake de 2020, pas les deux).
+    const titres = new Set([racineTitre(base._n)]);
+    const tries = res.filter((x) => { if (!garde.has(x.j.id)) return false; const r = racineTitre(x.j._n); if (titres.has(r)) return false; titres.add(r); return true; });
+    // Après God of War (2018), pas cinq God of War de suite : deux au plus en tête, les autres plus loin.
+    const serieB = new Set(base.series || []);
+    const deLaSerie = (c) => (c.series || []).some((i) => serieB.has(i));
+    const tete = [], plusTard = [];
+    let nbSerie = 0;
+    // Et pas trois FIFA après Rocket League : un seul jeu de chaque autre série en tête.
+    const autresVues = new Set();
+    tries.forEach((x) => {
+      if (deLaSerie(x.j) && !suitesJoueurs.has(x.j.id)) { if (nbSerie < 2) { nbSerie += 1; tete.push(x); } else plusTard.push(x); return; }
+      const ss = (x.j.series || []).filter((i) => !serieB.has(i));
+      if (ss.length && ss.some((i) => autresVues.has(i)) && tete.length < 10) { plusTard.push(x); return; }
+      ss.forEach((i) => autresVues.add(i));
+      tete.push(x);
+    });
+    return [...tete.slice(0, 10), ...plusTard.slice(0, 2), ...tete.slice(10), ...plusTard.slice(2)].slice(0, 60);
   }
 
   /* ---------- Accueil ---------- */
@@ -1003,7 +1052,7 @@
             ${ligne('Sur', trierMachines(j.plateformes).join(', '))}${ligne('Histoire', histoire ? '~' + histoire + ' h' : '')}${ligne('Avec les à-côtés', aCotes && aCotes >= histoire * 1.3 && (!complet || aCotes < complet) ? '~' + aCotes + ' h' : '')}${ligne('Tout faire', complet ? '~' + complet + ' h' : '')}
             ${j.gamepass && !j.gratuit ? `<dt>Game Pass</dt><dd>Oui, ${texteGamePass(j.gamepass)}</dd>` : ''}
             ${sesSeries.length ? `<dt>Série</dt><dd>${sesSeries.slice(0, 3).map((i) => `<a href="#/recherche?serie=${i}">${esc(SERIES[i])}</a>`).join(', ')}</dd>` : ''}
-            ${j.demo ? ligne('Petites sessions', j.sessions ? 'oui' : 'plutôt non') : ''}${ligne('Joueurs', cap(joueurs) + multiMort)}${ligne('Prix', j.gratuit ? 'Gratuit (free-to-play)' : '')}${ligne('Plutôt pour', humsEstimees.length ? listeFr(humsEstimees) + (j.humRedac ? ' (notre estimation)' : " (d'après son genre)") : '')}${j.verdicts ? ligne('Note IGDB', j.note ? j.note + '/100 (' + nb(j.nbNotes) + ' notes)' : '') : ''}
+            ${j.demo ? ligne('Petites sessions', j.sessions ? 'oui' : 'plutôt non') : ''}${ligne('Joueurs', cap(joueurs) + multiMort)}${ligne('Prix', j.gratuit ? 'Gratuit (free-to-play)' : '')}${ligne('Attention', j.ferme && j.annee ? (j.annee > ANNEE ? 'Pas encore sorti' : /counter-strike|overwatch/i.test(j.titre) ? 'Remplacé par sa suite, il ne se joue plus' : 'Serveurs fermés, il ne se joue plus') : '')}${ligne('Plutôt pour', humsEstimees.length ? listeFr(humsEstimees) + (j.humRedac ? ' (notre estimation)' : " (d'après son genre)") : '')}${j.verdicts ? ligne('Note IGDB', j.note ? j.note + '/100 (' + nb(j.nbNotes) + ' notes)' : '') : ''}
           </dl>
           <div class="fiche-principal">
             ${j.pitch ? `<p class="pitch">${esc(j.pitch)}</p>` : blocTexte(tx)}
@@ -1371,6 +1420,7 @@
     const exclus = new Set([base.id, ...deja, ...Object.keys(journal.finis), ...journal.passes]);
     const tags = (base.tags || []).filter((t) => t !== 'Coop');
     return PAR_POPULARITE.filter((c) => !exclus.has(c.id) && c.histoire > 0 && c.histoire <= 6 && !(c.tags || []).some((t) => tags.includes(t))
+      && retardEpoque(base, c) <= 4 && !c.gacha // pas Super Mario World (1990) pour souffler après Kingdom Come 2
       && (c.verdicts ? c.verdicts[0] >= 70 : (c.note || 0) >= 80 && (c.nbNotes || 0) >= 100)).slice(0, 3);
   }
 
@@ -1701,6 +1751,48 @@
   // IGDB compte peu de notes pour les jeux PC et indépendants : Factorio (318) ou Tunic (260) sont pourtant très connus.
   const estConnu = (c) => Math.max(c.populaire || 0, popOeuvre(c)) >= (c.inde ? 200 : 300) || (c.series || []).some((i) => (POP_SERIE[i] || 0) >= 600)
     || (c.annee >= ANNEE - 3 && (c.populaire || 0) >= 90 && (c.note || 0) >= 86);
+  // Ce qui éloigne un jeu du jeu de référence, en points de « comme X » : une autre époque, un autre genre de fond,
+  // une autre façon de jouer. Sert à « comme X » et après un jeu fini (une suite choisie par les joueurs n'est jamais pénalisée).
+  function ecartAvec(base, c, idBase = identite(base), idSujetBase = identiteSujet(base), baseTags = (base.tags || []).filter((t) => t !== 'Coop')) {
+    let e = 0;
+    e += retardEpoque(base, c) * 1.2; // « comme A Plague Tale » : pas un jeu des années 90
+    if (idBase && !(c.tags || []).includes(idBase)) e += 9;
+    if (base.vueFps === 2 && !c.vueFps && (base.tags || []).includes('Tir')) e += 6; // « comme Doom » : un FPS, pas Dead Space
+    if (idSujetBase && !(c.sujets || []).includes(idSujetBase)) e += 10;
+    e += Math.min(9, (c.tags || []).filter((t) => GENRES_LOURDS.includes(t) && !baseTags.includes(t)).length * 3);
+    if (!baseTags.includes('Action') && (c.tags || []).includes('Action')) e += 5 + ((c.tags || []).some((t) => ['Tir', "Beat'em all", 'Combat', 'Soulslike'].includes(t)) ? 5 : 0); // un jeu calme pour un jeu calme (pas Batman après Firewatch)
+    // Une durée sans commune mesure : pas un JRPG de 70 h après une balade de 4 h.
+    if (base.histoire && c.histoire && base.histoire <= 15 && c.histoire >= base.histoire * 5) e += 5;
+    if (base.histoire && c.histoire && base.histoire >= 40 && c.histoire * 8 <= base.histoire) e += 3;
+    const bs = base.sujets || [], cs = c.sujets || [];
+    if ((bs.includes('3d') && cs.includes('2d') && !cs.includes('3d')) || (bs.includes('2d') && !bs.includes('3d') && cs.includes('3d') && !cs.includes('2d'))) e += 4; // Momodora n'est pas « comme Elden Ring »
+    if (c.gacha && !base.gacha) e += 16; // jamais Wuthering Waves après Elden Ring
+    if (cs.includes('ambiance') && !bs.includes('ambiance')) e += 4; // un jeu de soirée pour un jeu de soirée (pas Mario Party après Hearthstone)
+    if (base.inde && !c.inde) e += 5; // après Bastion, Transistor ou Hades avant Horizon
+    if ((base.tags || []).includes('Vue iso') && !(c.tags || []).includes('Vue iso') && !(base.tags || []).includes('Tir')) e += 4;
+    if (base.deduction && !c.deduction) e += 6 + (cs.includes('ambiance') ? 0 : 8); // après Among Us : un jeu de soirée, pas Call of Duty
+    if (cs.includes('enfants') && !bs.includes('enfants') && !bs.includes('mignon')) e += 6; // pas Skylanders pour Diablo II
+    if (cs.includes('kart') !== bs.includes('kart')) e += 20; // Mario Kart n'est pas « comme Forza Horizon »
+    // Même façon de jouer : un jeu compétitif pour un jeu compétitif, un jeu solo pour un jeu solo.
+    if (base.jSet.pvp >= 3 && (c.jSet.pvp || 0) < 2) e += 12;
+    if ((base.jSet.pvp || 0) < 1 && (c.jSet.pvp || 0) >= 3 && !c.jSet.solo) e += 12; // pas Marvel Rivals « comme A Way Out »
+    if (!base.jSet.groupe && !c.jSet.solo) e += 12;
+    if (!base.jSet.solo && c.jSet.solo && (c.histoire >= 10 || (c.tags || []).some((t) => ['Aventure', 'RPG', 'Monde ouvert'].includes(t)))) e += 12; // Valorant n'a rien à voir avec GTA V
+    if (c.mmo && !base.mmo) e += 6; // pas Black Desert après Kingdom Come
+    if (base.jSet.solo && !c.jSet.solo && (c.jSet.pvp || 0) >= 2) e += 8; // pas Rust après Borderlands
+    if (base.jSet.solo && !base.jSet.coopForte && !c.jSet.solo) e += 6; // un jeu qu'on peut faire seul pour un jeu qu'on fait seul
+    if (!base.jSet.solo && (base.jSet.pvp || 0) >= 3 && c.jSet.solo && (c.jSet.pvp || 0) < 3) e += 8; // Overwatch : Valorant, pas Perfect Dark
+    if (baseTags.includes('Aventure') && !baseTags.includes('Tir') && !(c.tags || []).includes('Aventure')) e += 4; // A Way Out : pas Battlefield 3
+    const mobileSeul = (j) => j.familles && j.familles.length && j.familles.every((x) => x === 'Mobile' || x === 'Navigateur');
+    if (mobileSeul(c) && !mobileSeul(base)) e += 10; // pas Mario Kart Tour ni Aquapark.io après Mario Kart 8
+    if (/^roblox$|garry's mod|^vrchat|^rec room|^dreams$|^core$|^fortnite creative/i.test(c._n || '') && !/roblox|garry|vrchat|rec room/i.test(base._n || '')) e += 10; // une plateforme de mini-jeux n'est pas « comme Mario »
+    if (!base.jSet.solo && base.jSet.coop && !c.jSet.coop) e += 12; // un jeu à deux pour un jeu à deux
+    if ((c.tags || []).includes('Horreur') && !baseTags.includes('Horreur')) e += 6; // pas Stranded Deep après Stardew Valley
+    if ((cs.includes('mignon') || cs.includes('enfants')) && !['mignon', 'enfants', 'famille'].some((k) => bs.includes(k))) e += 2;
+    if ((cs.includes('mignon') || cs.includes('enfants')) && !bs.includes('mignon') && !bs.includes('enfants') && (base.tags || []).some((t) => ['RPG', 'Horreur', 'Tir', 'Soulslike'].includes(t))) e += 4; // pas Zelda: A Link Between Worlds après Kingdom Come
+    return e;
+  }
+
   function filtrer(f, options = {}) {
     const res = [];
     const coeurs = options.sansFinis ? coeursDuJoueur() : [];
@@ -1708,12 +1800,13 @@
     const ref = base ? prochesDe(base) : null;
     const baseTags = base ? (base.tags || []).filter((t) => t !== 'Coop') : [];
     const baseHum = base ? topHum(base, 3) : [];
-    const seuilBase = base ? Math.max(1.5, Math.min(3.5, proximite(base, base) * 0.45)) : 0;
+    // Un jeu peu décrit (Wind Waker : action, aventure) garde des résultats : le seuil ne dépasse jamais 60 % de sa propre proximité.
+    const seuilBase = base ? Math.min(Math.max(1.5, Math.min(3.5, proximite(base, base) * 0.45)), proximite(base, base) * 0.6) : 0;
     const idBase = base ? identite(base) : null;
     const idSujetBase = base ? identiteSujet(base) : null;
     const sportVoulu = (f.sujet || '').split(',').find((k) => SPORTS.includes(k));
     for (const c of TOUS) {
-      if (c === base || (c.fan && !(base && base.fan))) continue;
+      if (c === base || c.doublon || c.ferme || (c.fan && !(base && base.fan))) continue;
       if (options.sansFinis && journal.finis[c.id]) continue;
       if (options.sansFinis && !f.vr && vrSeulement(c)) continue; // seulement dans « Ce qui me tente »
       if (options.sansFinis && c.jSet.mort && !c.jSet.solo) continue; // jeu uniquement en ligne dont les serveurs sont fermés : injouable
@@ -1734,6 +1827,8 @@
       if (f.annee && c.annee !== Number(f.annee)) continue;
       if (f.depuis && !(c.annee >= Number(f.depuis))) continue;
       if (f.inde && !c.inde) continue;
+      // « Parmi les mieux notés » : une vraie note (assez de votes), 80 ou plus.
+      if (f.meilleurs && !((c.verdicts && c.verdicts[0] >= 80) || ((c.nbNotes || 0) >= 40 && (noteFiable(c) || 0) >= 80))) continue;
       // « Moins connu » : peu de notes sur IGDB, mais de bonnes notes ; « un gros jeu » : très connu, pas indé.
       if (f.connu === 'peu' && (estConnu(c) || c.gacha || (c.populaire || 0) < 50 || (c.note && c.note < 75))) continue;
       if (f.connu === 'gros' && (c.inde || !((c.populaire || 0) >= 250 || (c.annee >= ANNEE - 2 && (c.populaire || 0) >= 60)))) continue;
@@ -1764,24 +1859,8 @@
         // Un voisin ou un « similaire » qui n'a pas ce qui définit le jeu (Red Dead Redemption 2 pour The Witcher 3) perd son bonus.
         const identiteOk = (!idBase || (c.tags || []).includes(idBase)) && (!idSujetBase || (c.sujets || []).includes(idSujetBase));
         lien = p * 2.5 + (suite ? 16 : voisin ? (identiteOk ? 8 : 2) : 0) + (similaire ? (identiteOk ? 10 : 2) : 0) + baseHum.reduce((acc, h) => acc + Math.min((c.hum || {})[h] || 0, (base.hum || {})[h] || 0) / 15, 0);
-        if (!suite) {
-          lien -= retardEpoque(base, c) * 0.9; // « comme A Plague Tale » : pas un jeu des années 90
-          if (idBase && !(c.tags || []).includes(idBase)) lien -= 9;
-          if (base.vueFps === 2 && !c.vueFps) lien -= 6; // « comme Doom » : un FPS, pas Dead Space
-          if (idSujetBase && !(c.sujets || []).includes(idSujetBase)) lien -= 10;
-          lien -= Math.min(9, (c.tags || []).filter((t) => GENRES_LOURDS.includes(t) && !baseTags.includes(t)).length * 3);
-          if (!baseTags.includes('Action') && (c.tags || []).includes('Action')) lien -= 3; // un jeu calme pour un jeu calme
-          const bs = base.sujets || [], cs = c.sujets || [];
-          if ((bs.includes('3d') && cs.includes('2d') && !cs.includes('3d')) || (bs.includes('2d') && !bs.includes('3d') && cs.includes('3d') && !cs.includes('2d'))) lien -= 4; // Momodora n'est pas « comme Elden Ring »
-          if (c.gacha && !base.gacha) lien -= 8;
-          if (base.inde && !c.inde) lien -= 3;
-          if (cs.includes('enfants') && !bs.includes('enfants') && !bs.includes('mignon')) lien -= 6; // pas Skylanders pour Diablo II
-          if (cs.includes('kart') !== bs.includes('kart')) lien -= 20; // Mario Kart n'est pas « comme Forza Horizon »
-        }
-        // Même façon de jouer : un jeu compétitif pour un jeu compétitif, un jeu solo pour un jeu solo.
-        if (base.jSet.pvp >= 3 && (c.jSet.pvp || 0) < 2) lien -= 12;
-        if (!base.jSet.groupe && !c.jSet.solo) lien -= 12;
-        if (!base.jSet.solo && c.jSet.solo && (c.histoire >= 10 || (c.tags || []).some((t) => ['Aventure', 'RPG', 'Monde ouvert'].includes(t)))) lien -= 12; // Valorant n'a rien à voir avec GTA V
+        if (!suite) lien -= ecartAvec(base, c, idBase, idSujetBase, baseTags);
+        else lien -= retardEpoque(base, c) * 1.2; // « comme Tomb Raider (2013) » : pas l'épisode de 1996
       }
       if (f.j === 'solo' && !c.jSet.solo) continue;
       if (f.j === 'deux' && !c.jSet.deux) continue;
@@ -1789,8 +1868,9 @@
       if (f.j === 'pvp' && !(c.jSet.pvp >= 2)) continue;
       if (f.p && !surMachine(c, f.p)) continue;
       // La note fiable (rapprochée de 70 quand il y a peu de votes) : un jeu noté 92 par 30 personnes ne passe pas devant.
-      let s = Math.log10((c.populaire || 0) + 1) * 4 + (c.note ? noteFiable(c) / 6 : c.verdicts ? c.verdicts[0] / 4 : 55 / 6) + lien + (dansListe ? 8 : 0) + (coeurs.length && coeurProche(c, coeurs) ? 5 : 0)
-        + (f.steam ? (c.possede.minutes < 120 ? 6 : c.possede.minutes > 1200 ? -6 : 0) : 0);
+      let s = Math.log10((c.populaire || 0) + 1) * (base ? 5.5 : 4) + (c.note ? noteFiable(c) / 6 : c.verdicts ? c.verdicts[0] / 4 : 55 / 6) + lien + (dansListe ? 8 : 0) + (coeurs.length && coeurProche(c, coeurs) ? 5 : 0)
+        + (f.steam ? (c.possede.minutes < 120 ? 6 : c.possede.minutes > 1200 ? -6 : 0) : 0)
+        - (base && !(ref && ref.suites.has(c.id)) && (c.populaire || 0) < 20 ? (20 - (c.populaire || 0)) / 2 : 0); // « comme Minecraft » : pas d'abord un jeu que presque personne n'a noté
       // Ce qui rend un jeu plus pertinent pour cette envie précise.
       const js = c.jSet;
       const sujetsC = c.sujets || [];
@@ -1849,7 +1929,8 @@
       if (f.facile) s -= ((c.hum || {}).defi || 0) / 4; // « un souls pas trop dur » : Tunic, pas Bloodborne
       if ((f.sujet || '').split(',').includes('cuisine') && ((c.tags || []).includes('Tir') || sujetsC.includes('survie'))) s -= 8; // Overcooked, pas Rust
       if (f.facile) s += ((c.sujets || []).some((x) => ['famille', 'mignon', 'enfants'].includes(x)) ? 5 : 0) + (((c.hum || {}).detente || 0) >= 20 ? 3 : 0);
-      if (f.sujet) f.sujet.split(',').forEach((k) => { s += ((c.sujetsForts || []).includes(k) ? 10 : 0) + (TITRE_SUJET[k] && TITRE_SUJET[k].test(c._n) ? 8 : 0); });
+      // Un sujet seulement effleuré (Elden Ring a « plusieurs fins », Donkey Kong 2 un chat quelque part) passe après les jeux qui en parlent vraiment.
+      if (f.sujet) f.sujet.split(',').forEach((k) => { const fort = (c.sujetsForts || []).includes(k), titre = !!(TITRE_SUJET[k] && TITRE_SUJET[k].test(c._n)); s += (fort ? 10 : 0) + (titre ? 8 : 0) - (fort || titre ? 0 : 5); });
       if (f.h) {
         const v = (c.hum || {})[f.h] || 0;
         const tranquilleQuandMeme = f.h === 'detente' && c.rythme === 'pose' && v >= 8;
@@ -1931,7 +2012,7 @@
   // Aussi « Divinity: Original Sin II - Definitive Edition », « OneShot: World Machine Edition », « Disco Elysium: The Final Cut ».
   // Une version (« Remastered », « Definitive Edition », « Director's Cut ») va avec le jeu d'origine sorti avant elle ;
   // deux jeux du même nom mais d'années différentes (God of War 2005 et 2018, Doom 1993 et 2016) restent deux jeux.
-  const SUFFIXE_VERSION = /\s+(?:game of the year|goty|director's cut|complete|definitive|enhanced|deluxe|gold|remastered|remaster|anniversary|special|hd|redux|reloaded|royal|golden|fes|warmastered|ultimate edition|(?:the )?final cut|world machine)(?: edition)?(?: director's cut)?\s*$/;
+  const SUFFIXE_VERSION = /\s+(?:game of the year|goty|director's cut|complete|definitive|enhanced|deluxe|gold|remastered|remaster|anniversary|special|hd|redux|reloaded|royal|golden|fes|warmastered|ultimate edition|(?:the )?final cut|world machine|part i)(?: edition)?(?: director's cut)?\s*$/;
   const racineTitre = (n) => n.replace(SUFFIXE_VERSION, '').replace(SUFFIXE_VERSION, '').trim();
   let ANNEES_ORIGINES = null;
   const oeuvre = (c) => {
@@ -1940,9 +2021,17 @@
       TOUS.forEach((x) => { if (racineTitre(x._n) === x._n && x.annee) { const l = ANNEES_ORIGINES.get(x._n) || []; l.push(x.annee); ANNEES_ORIGINES.set(x._n, l); } });
       ANNEES_ORIGINES.forEach((l) => l.sort((a, b) => a - b));
     }
-    const r = racineTitre(c._n);
+    let r = racineTitre(c._n);
+    // « Portal: Still Alive », « Dark Souls II: Scholar of the First Sin » : le jeu avant les deux-points existe et sort
+    // la même année ou juste avant : c'est une version de ce jeu (mais « God of War: Ghost of Sparta » reste un autre jeu).
+    const avant = String(c.titre || '').split(/\s*[:–]\s+|\s+-\s+/)[0];
+    if (avant && avant.length < String(c.titre || '').length) {
+      const ra = racineTitre(pourRecherche(avant.toLowerCase()));
+      const anneesAvant = ANNEES_ORIGINES.get(ra) || [];
+      if (ra !== r && anneesAvant.some((y) => c.annee && y <= c.annee && c.annee - y <= 2)) r = ra;
+    }
     const annees = ANNEES_ORIGINES.get(r) || [];
-    const a = r === c._n ? c.annee : [...annees].reverse().find((y) => y <= (c.annee || 9999)) || 'v' + c.annee; // pas d'original avant lui : on ne devine pas
+    const a = r === c._n ? c.annee : !ANNEES_ORIGINES.has(r) ? c.annee : [...annees].reverse().find((y) => y <= (c.annee || 9999)) || 'v' + c.annee; // pas d'original avant lui : on ne devine pas
     return r + '|' + (a || '');
   };
   // Une seule version de chaque jeu dans une liste, et pas une autre version d'un jeu déjà fini ni du jeu de référence.
@@ -2017,6 +2106,13 @@
     let tirage = 0;
     let inconnus = new Set();
     const ecartes = new Set();
+    // Trier la liste (les trois propositions, elles, restent les plus pertinentes).
+    const TRIS = [['', 'Pertinence'], ['note', 'Les mieux notés'], ['court', 'Les plus courts'], ['recent', 'Les plus récents'], ['populaire', 'Les plus populaires']];
+    let tri = TRIS.some(([v]) => v && v === params.get('tri')) ? params.get('tri') : '';
+    // Les filtres qu'on ajoute en un geste, sous les propositions.
+    const AFFINER = [['gratuit', 'Gratuits'], ['coop', 'En coop'], ['sansPvp', "Sans affronter d'autres joueurs"], ['meilleurs', 'Parmi les mieux notés'], ['connu', 'Moins connus'],
+      ['depuis', 'Sortis ces 5 dernières années'], ['d', 'En moins de 15 heures'], ['paisible', 'Sans combat'], ['inde', 'Indés']];
+    const affinerActif = (k, filtres) => (k === 'd' ? !!filtres.d : !!filtres[k]);
     const trou = (k, ponct) => `<span class="trou"><label class="sr" for="f-${k}">${NOMS_FILTRES[k]}</label><select id="f-${k}" data-f="${k}">${OPTIONS[k].map(([v, t]) => `<option value="${esc(v)}" ${(f[k] || '') === v ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select>${ponct || ''}</span>`;
     main.innerHTML = `
       <div class="wrap envie">
@@ -2031,6 +2127,10 @@
         <div class="extras" id="extras"></div>
         <section class="choix" id="choix" aria-label="Trois propositions pour ton envie"></section>
         <div class="resultats-tete"><div><h2 id="nb-resultats" aria-live="polite"></h2><p class="nb-notes" id="nb-notes" hidden></p></div><button class="btn discret" type="button" id="raz">Tout remettre à zéro</button></div>
+        <div class="filtres tri-barre" id="tri-barre">
+          <label for="e-tri">Trier par<select id="e-tri">${TRIS.map(([v, t]) => `<option value="${v}" ${v === tri ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
+          <label for="e-affiner">Affiner<select id="e-affiner"></select></label>
+        </div>
         <div id="resultats"></div>
       </div>`;
 
@@ -2063,13 +2163,32 @@
       if (extras.c && PAR_ID[extras.c]) chargerFiche(PAR_ID[extras.c]).then(() => { if (extras.c) maj(); });
     };
     let res = [];
+    let liste = [];
     let montres = 0;
+    const trier = (l) => {
+      if (!tri) return l;
+      const cle = {
+        note: (c) => -(noteFiable(c) || (c.verdicts ? c.verdicts[0] : 0)),
+        court: (c) => (c.histoire > 0 ? c.histoire : 1e6),
+        recent: (c) => -(c.annee || 0),
+        populaire: (c) => -(c.populaire || 0),
+      }[tri];
+      // Les jeux dont on ne sait rien sur ce point (pas de note, durée inconnue) restent en fin de liste,
+      // et un jeu que presque personne n'a noté passe après les autres (« les plus courts » ne doit pas devenir « les plus obscurs »).
+      const peuConnu = (c) => (c.verdicts || (c.populaire || 0) >= 40 ? 0 : 1);
+      return l.map((c, i) => [peuConnu(c), cle(c), i, c]).sort((a, b) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2]).map((x) => x[3]);
+    };
+    const peindreAffiner = (filtres) => {
+      const libres = AFFINER.filter(([k]) => !affinerActif(k, filtres));
+      $('#e-affiner').innerHTML = `<option value="">${libres.length ? 'Ajouter un filtre' : 'Tous les filtres sont pris'}</option>` + libres.map(([k, t]) => `<option value="${k}">${t}</option>`).join('');
+      $('#tri-barre').hidden = !res.length || !Object.keys(filtres).length;
+    };
     const plus = () => {
       const filtres = lireFiltres();
-      const lot = res.slice(montres, montres + PAR_PAGE);
+      const lot = liste.slice(montres, montres + PAR_PAGE);
       $('.liste-jeux').insertAdjacentHTML('beforeend', lot.map((c) => ligneJeu(c, filtres, inconnus.has(c.id))).join(''));
       montres += lot.length;
-      $('#plus-resultats').hidden = montres >= res.length;
+      $('#plus-resultats').hidden = montres >= liste.length;
     };
     const maj = () => {
       const filtres = lireFiltres();
@@ -2077,6 +2196,8 @@
       const brut = filtrer(filtres, { sansFinis: true });
       inconnus = brut.inconnus;
       res = uneVersion(brut.filter((c) => !ecartes.has(c.id)), filtres.c && PAR_ID[filtres.c]);
+      liste = trier(res);
+      peindreAffiner(filtres);
       const nbInconnus = res.filter((c) => inconnus.has(c.id)).length;
       const nbConnus = res.length - nbInconnus;
       montres = 0;
@@ -2107,6 +2228,7 @@
       const qs = new URLSearchParams(filtres);
       const t = $('#libre').value.trim();
       if (t) qs.set('t', t);
+      if (tri) qs.set('tri', tri);
       history.replaceState(null, '', '#/envie' + (qs.toString() ? '?' + qs : ''));
     };
     $('#choix').addEventListener('click', (e) => {
@@ -2144,6 +2266,16 @@
       maj();
     });
     $$('select[data-f]').forEach((s) => s.addEventListener('change', () => { $('#compris').textContent = ''; tirage = 0; maj(); }));
+    $('#e-tri').addEventListener('change', (e) => { tri = e.target.value; maj(); });
+    $('#e-affiner').addEventListener('change', (e) => {
+      const k = e.target.value;
+      if (!k) return;
+      if (k === 'd') $('#f-d').value = '15';
+      else extras[k] = k === 'connu' ? 'peu' : k === 'depuis' ? String(ANNEE - 5) : '1';
+      peindreExtras();
+      maj();
+      toast(`Filtre ajouté : ${AFFINER.find((x) => x[0] === k)[1].toLowerCase()}. La croix, en haut, le retire.`);
+    });
     let attente;
     const lireLibre = () => {
       const texte = $('#libre').value;
@@ -2159,7 +2291,7 @@
       maj();
     };
     $('#libre').addEventListener('input', () => { clearTimeout(attente); attente = setTimeout(lireLibre, 250); });
-    $('#raz').addEventListener('click', () => { $('#libre').value = ''; $$('select[data-f]').forEach((s) => { s.value = ''; }); extras = {}; tirage = 0; ecartes.clear(); peindreExtras(); $('#compris').textContent = ''; maj(); });
+    $('#raz').addEventListener('click', () => { $('#libre').value = ''; $$('select[data-f]').forEach((s) => { s.value = ''; }); extras = {}; tirage = 0; tri = ''; $('#e-tri').value = ''; ecartes.clear(); peindreExtras(); $('#compris').textContent = ''; maj(); });
     peindreExtras();
     if (params.get('t') && !Object.keys(f).length && !Object.keys(extras).length) lireLibre(); else maj();
     // Les jeux proches de tes coups de cœur ne sont connus qu'une fois leurs fiches chargées.
@@ -2442,8 +2574,25 @@
     const titre = await page(morceaux.slice(1), new URLSearchParams(qs || ''));
     if (moi !== jetonRendu) return;
     document.title = (titre ? titre + ' · ' : '') + 'Nouvelle Partie +';
-    $$('a[data-nav]').forEach((a) => { if (a.dataset.nav === morceaux[0]) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
+    $$('a[data-nav]').forEach((a) => { if (a.dataset.nav === (morceaux[0] || '')) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
+    fermerRecherche();
     activerLampes();
+  }
+
+  // Sur téléphone, la recherche se replie derrière une loupe : l'en-tête tient sur une ligne.
+  const enTete = $('.top'), boutonLoupe = $('#ouvrir-recherche');
+  function fermerRecherche() {
+    if (!enTete || !enTete.classList.contains('cherche')) return;
+    enTete.classList.remove('cherche');
+    if (boutonLoupe) boutonLoupe.setAttribute('aria-expanded', 'false');
+  }
+  if (boutonLoupe) {
+    boutonLoupe.addEventListener('click', () => {
+      const ouvert = enTete.classList.toggle('cherche');
+      boutonLoupe.setAttribute('aria-expanded', String(ouvert));
+      if (ouvert) $('#q').focus(); else $('#q').blur();
+    });
+    $('#q').addEventListener('keydown', (e) => { if (e.key === 'Escape' && !e.target.value) { fermerRecherche(); boutonLoupe.focus(); } });
   }
 
   let premier = true;
