@@ -169,7 +169,7 @@ p { margin: 0; text-wrap: pretty; }
 .humeurs { border-top: 1px solid var(--filet); }
 .humeur { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 28px; padding: 14px 0; border-bottom: 1px solid var(--filet); text-decoration: none; }
 .humeur .h-nom { font-family: var(--titre); font-weight: 700; font-size: clamp(30px, 4vw, 48px); line-height: 1; flex: 1 1 280px; transition: color 0.2s ease; }
-.humeur .h-jeux { display: flex; gap: 8px; }
+.humeur .h-jeux { display: flex; gap: 8px; min-height: 66px; }
 .humeur .h-jeux img { width: 44px; aspect-ratio: 2 / 3; object-fit: cover; filter: brightness(0.55) saturate(0.4); transition: filter 0.28s ease; }
 .humeur:hover .h-nom, .humeur:focus-visible .h-nom { color: var(--lampe); }
 .humeur:hover .h-jeux img, .humeur:focus-visible .h-jeux img { filter: none; }

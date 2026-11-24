@@ -1036,15 +1036,51 @@
       <span class="apres"><img data-vt src="${jaquette(b)}" alt="" loading="lazy"></span></a>`;
   }
 
-  const jeuxPourHumeur = (k) => PAR_POPULARITE.filter((j) => ((j.hum || {})[k] || 0) >= 20);
+  // « Selon ton humeur » : les mêmes jeux que la page où mène la ligne (Ce qui me tente), pas une estimation d'après le genre
+  // (plus GTA V ni Uncharted « pour enchaîner les parties »). Chaque jeu une seule fois sur l'accueil, une seule version, un seul par série.
+  // Calculé seulement quand on arrive à cette partie de la page, une humeur à la fois : l'accueil s'affiche tout de suite.
+  const HUMEURS_ACCUEIL = ['detente', 'defouler', 'reflechir', 'emotion', 'evasion', 'defi', 'frissons', 'plusieurs', 'encoreune'];
+  let cacheHumeurs = null, cleHumeurs = '';
+  function remplirHumeurs() {
+    const bloc = $('.humeurs');
+    if (!bloc) return;
+    const cle = Object.keys(journal.finis).length + '|' + journal.passes.length;
+    const peindre = (k, jeux) => { const z = $(`.humeur[data-humeur="${k}"] .h-jeux`, bloc); if (z) z.innerHTML = jeux.map((x) => `<img src="${jaquette(x)}" alt="" loading="lazy" data-titre="">`).join(''); };
+    if (cacheHumeurs && cleHumeurs === cle) { HUMEURS_ACCUEIL.forEach((k) => peindre(k, cacheHumeurs[k] || [])); return; }
+    const lancer = () => {
+      const res = {}, deja = new Set();
+      let i = 0;
+      const suivante = () => {
+        if (!bloc.isConnected) return;
+        const k = HUMEURS_ACCUEIL[i++];
+        const series = new Set(), jeux = [];
+        for (const c of uneVersion(filtrer({ h: k }, { sansFinis: true }).slice(0, 60))) {
+          if (deja.has(oeuvre(c)) || (c.series || []).some((x) => series.has(x))) continue;
+          jeux.push(c); deja.add(oeuvre(c)); (c.series || []).forEach((x) => series.add(x));
+          if (jeux.length === 5) break;
+        }
+        res[k] = jeux;
+        peindre(k, jeux);
+        if (i < HUMEURS_ACCUEIL.length) setTimeout(suivante, 0);
+        else { cacheHumeurs = res; cleHumeurs = cle; }
+      };
+      suivante();
+    };
+    if (!('IntersectionObserver' in window)) { lancer(); return; }
+    const obs = new IntersectionObserver((en) => { if (en.some((x) => x.isIntersecting)) { obs.disconnect(); lancer(); } }, { rootMargin: '700px 0px' });
+    obs.observe(bloc);
+  }
 
   // Les étagères sous le grand visuel, communes aux deux versions de l'accueil.
   function sectionsAccueil() {
-    const courts = PAR_POPULARITE.filter((x) => x.histoire && x.histoire <= 5).slice(0, 14);
+    // « Pour un soir » : courts ET marquants (pas la campagne de Battlefield 3), plutôt d'après 2005, une seule version, un par série.
+    const seriesCourts = new Set();
+    const courts = uneVersion(PAR_POPULARITE.filter((x) => x.histoire && x.histoire <= 5 && x.annee >= 2005 && !(x.jSet && x.jSet.pvp >= 2) && !x.sansFin && (x.verdicts ? x.verdicts[0] >= 60 : (noteFiable(x) || 0) >= 80)))
+      .filter((x) => { if ((x.series || []).some((i) => seriesCourts.has(i))) return false; (x.series || []).forEach((i) => seriesCourts.add(i)); return true; }).slice(0, 14);
     const aimes = CAT
       ? uneVersion([...TOUS].filter((x) => (x.nbNotes || 0) >= 150 && x.note && x.annee <= ANNEE && !x.doublon && !x.ferme && !x.fan).sort((a, b) => noteFiable(b) - noteFiable(a))).slice(0, 14)
       : [...TOUS].sort((a, b) => b.verdicts[0] - a.verdicts[0]).slice(0, 12);
-    const cles = ['detente', 'defouler', 'reflechir', 'emotion', 'evasion', 'defi', 'frissons', 'plusieurs', 'encoreune'];
+    const cles = HUMEURS_ACCUEIL;
     const paires = PAIRES.filter(([a, b]) => PAR_ID[a] && PAR_ID[b]);
     return `
       <div class="wrap">
@@ -1059,8 +1095,7 @@
         <section class="section">
           <div class="section-tete"><h2>Selon ton humeur</h2><a class="lien-fleche" href="#/envie">Décrire mon envie ${fleche}</a></div>
           <div class="humeurs">${cles.map((k) => {
-            const jeux = jeuxPourHumeur(k);
-            return `<a class="humeur" href="#/envie?h=${k}"><span class="h-nom">Pour ${HUM[k]}</span><span class="h-jeux">${jeux.slice(0, 5).map((x) => `<img src="${jaquette(x)}" alt="" loading="lazy" data-titre="">`).join('')}</span></a>`;
+            return `<a class="humeur" href="#/envie?h=${k}" data-humeur="${k}"><span class="h-nom">Pour ${HUM[k]}</span><span class="h-jeux" aria-hidden="true"></span></a>`;
           }).join('')}</div>
         </section>
         <section class="section">
@@ -1089,6 +1124,7 @@
       </section>
       ${sectionsAccueil()}`;
     autocomplete($('#fini-q'), $('#fini-q-liste'), (g) => { aller('/fini/' + g.id); }, 'fini');
+    remplirHumeurs();
     return '';
   }
 
