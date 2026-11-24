@@ -795,7 +795,7 @@
       const Rx = tact ? Math.max(130, innerWidth * 0.4) : 360, Ry = tact ? Math.max(200, innerHeight * 0.36) : 360;
       jaquettesVisibles.forEach((c) => {
         if (!c.isConnected) { jaquettesVisibles.delete(c); return; }
-        const r = (c.firstElementChild || c).getBoundingClientRect();
+        const r = (c.classList.contains('cover') ? c.firstElementChild || c : c).getBoundingClientRect();
         const e = Math.max(0, 1 - Math.hypot((r.left + r.width / 2 - px) / Rx, (r.top + r.height / 2 - py) / Ry));
         c.style.setProperty('--e', e.toFixed(2));
       });
@@ -822,7 +822,8 @@
       addEventListener('scroll', eclairerJaquettes, { passive: true, capture: true }); // aussi les étagères qui défilent sur le côté
       addEventListener('resize', eclairerJaquettes, { passive: true });
     }
-    $$('.cover', racine).forEach((c) => { if (!c.dataset.lumiere) { c.dataset.lumiere = '1'; obsJaquettes.observe(c); obsReflets.observe(c); } });
+    // Toutes les jaquettes reçoivent la lumière ; le reflet reste réservé aux grandes jaquettes des étagères.
+    $$('.cover, .suite .apres, .humeur .h-jeux, .ligne-jeu, .choix-jeu', racine).forEach((c) => { if (!c.dataset.lumiere) { c.dataset.lumiere = '1'; obsJaquettes.observe(c); if (c.classList.contains('cover')) obsReflets.observe(c); } });
   }
   // Tout ce qui apparaît dans la page (nouvelle page, résultats d'une envie) profite de la lumière.
   let attenteLumiere = 0;
