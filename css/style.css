@@ -138,13 +138,13 @@ p { margin: 0; text-wrap: pretty; }
 /* Les jaquettes s'allument près de la lumière (--e de 0 à 1, calculé par la page) : sous la souris sur ordinateur. */
 .jaquettes-lumiere .cover img { filter: brightness(calc(0.62 + 0.38 * var(--e, 0))) saturate(calc(0.55 + 0.45 * var(--e, 0))); transition: filter 0.3s ease; }
 .jaquettes-lumiere .cover:hover img, .jaquettes-lumiere .cover:focus-visible img, .jaquettes-lumiere .cover:active img { filter: none; }
-/* Le reflet : un trait de lumière passe sur la jaquette quand elle apparaît, et sous la souris. */
+/* Le reflet : un trait de lumière discret passe sur la jaquette quand elle apparaît (téléphone). Sur ordinateur, un léger soulèvement sous la souris. */
 .cover .img { position: relative; transition: transform 0.35s cubic-bezier(0.2, 0.7, 0.2, 1), box-shadow 0.35s ease; }
-.cover .img::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(112deg, transparent 32%, rgba(255, 232, 190, 0.34) 47%, rgba(255, 246, 225, 0.5) 50%, rgba(255, 232, 190, 0.3) 53%, transparent 68%); transform: translateX(-130%); }
-.cover.reflet .img::after { animation: reflet 1.15s var(--d, 0ms) cubic-bezier(0.3, 0.6, 0.2, 1) both; }
-@media (hover: hover) and (pointer: fine) { .cover:hover .img::after { animation: reflet-survol 0.85s cubic-bezier(0.3, 0.6, 0.2, 1) both; } .cover:hover .img { transform: translateY(-4px); box-shadow: 0 18px 34px -14px rgba(240, 176, 63, 0.45); } }
+.cover .img::after { content: ''; position: absolute; inset: 0; pointer-events: none; background: linear-gradient(112deg, transparent 38%, rgba(255, 236, 200, 0.12) 47%, rgba(255, 244, 222, 0.2) 50%, rgba(255, 236, 200, 0.12) 53%, transparent 62%); transform: translateX(-130%); }
+/* Le reflet seulement sur téléphone, une fois, à l'apparition : sur ordinateur, la lumière de la souris suffit. */
+@media (hover: none), (pointer: coarse) { .cover.reflet .img::after { animation: reflet 1.4s var(--d, 0ms) cubic-bezier(0.35, 0.55, 0.25, 1) both; } }
+@media (hover: hover) and (pointer: fine) { .cover:hover .img { transform: translateY(-2px); box-shadow: 0 14px 28px -16px rgba(240, 176, 63, 0.3); } }
 @keyframes reflet { to { transform: translateX(130%); } }
-@keyframes reflet-survol { to { transform: translateX(130%); } }
 /* Sur téléphone, toutes les jaquettes restent bien éclairées ; celle qui passe au centre reçoit un halo chaud. */
 @media (hover: none), (pointer: coarse) {
   .jaquettes-lumiere .cover img { filter: brightness(calc(0.9 + 0.1 * var(--e, 0))) saturate(calc(0.85 + 0.15 * var(--e, 0))); }
