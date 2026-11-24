@@ -891,12 +891,14 @@
   const VUES = new Set(['Vue FPS', 'Vue iso', 'Vue 2D']);
   // « Survie » ou « bac à sable » d'IGDB : un thème large (Tomb Raider en a), qui ne compte vraiment qu'entre deux jeux de survie ou de construction.
   const THEMES_LARGES = new Set(['survie', 'sandbox']);
+  // Une activité à côté (pêcher, monter à cheval, cuisiner dans Red Dead ou Zelda) ne rapproche vraiment que deux jeux qui en font leur cœur.
+  const ACTIVITES = new Set(['peche', 'chevaux', 'cuisine']);
   const memeFamille = (a, b) => ['Monde ouvert', 'Gestion'].some((t) => (a.tags || []).includes(t) && (b.tags || []).includes(t));
   // Des énigmes « de fond » (Zelda) rapprochent deux Zelda, pas un Zelda d'un vrai jeu d'énigmes.
   const poidsTag = (a, b, t) => (VUES.has(t) && !(a.tags || []).includes('Tir') ? 0.4 : 1);
   const proximite = (a, b) => (a.tags || []).filter((t) => t !== 'Coop' && (b.tags || []).includes(t)).reduce((s, t) => s + (RARETE[t] || 0) * poidsTag(a, b, t), 0) + (a.enigmesSecondaires && b.enigmesSecondaires ? (RARETE['Énigmes'] || 0) * 0.6 : 0)
     + (a.sujetsForts || []).filter((x) => !STYLE.has(x) && (b.sujetsForts || []).includes(x)).length * 1.5
-    + (a.sujets || []).filter((x) => !SUJETS_TROP_COURANTS.has(x) && (b.sujets || []).includes(x)).reduce((s, k) => s + (RARETE_SUJET[k] || 0.5) * (STYLE.has(k) || (THEMES_LARGES.has(k) && !memeFamille(a, b)) ? 0.5 : 1), 0)
+    + (a.sujets || []).filter((x) => !SUJETS_TROP_COURANTS.has(x) && (b.sujets || []).includes(x)).reduce((s, k) => s + (RARETE_SUJET[k] || 0.5) * (ACTIVITES.has(k) && !((a.sujetsForts || []).includes(k) && (b.sujetsForts || []).includes(k)) ? 0.35 : STYLE.has(k) || (THEMES_LARGES.has(k) && !memeFamille(a, b)) ? 0.5 : 1), 0)
     - ecartRpg(a, b);
   // Ce qui définit un jeu pour un joueur : « comme The Witness », c'est un jeu d'énigmes avant tout, pas BioShock.
   const IDENTITES = ['Énigmes', 'Soulslike', 'Metroidvania', 'Roguelite', 'Cartes', 'Rythme', 'Combat', 'Course', 'Sport', 'Gestion', 'Stratégie', 'MOBA', 'Battle royale', 'RPG', 'Plateforme', 'Horreur'];
@@ -925,9 +927,21 @@
       if (!c || vus.has(id) || c.doublon || c.ferme || (c.fan && !j.fan)) return;
       const p = proximite(j, c);
       // Les mêmes garde-fous que partout : pas The Elder Scrolls II (1996) « dans la même veine » que Kingdom Come 2.
-      if (p >= seuil || (sim.has(id) && p >= Math.max(1, seuil * 0.5))) res.push([p * 2 + Math.log10((c.populaire || 0) + 1) * 2 + (sim.has(id) ? 6 : 0) - ecartAvec(j, c, idJ, idSJ, tagsJ) * 0.5, c]);
+      // Un « similaire » d'IGDB qui n'a pas le même univers ou la même façon de jouer ne profite plus du bonus (L.A. Noire après Zelda).
+      const ecart = ecartAvec(j, c, idJ, idSJ, tagsJ);
+      if (p >= seuil || (sim.has(id) && p >= Math.max(1, seuil * 0.5))) res.push([p * 2 + Math.log10((c.populaire || 0) + 1) * 2 + (sim.has(id) && ecart < 6 ? 6 : 0) - ecart * 0.5, c]);
     });
-    return res.sort((a, b) => b[0] - a[0]).map((x) => x[1]).slice(0, max);
+    // Pas quatre Assassin's Creed d'affilée : un seul jeu de chaque autre série (sa propre série a sa propre étagère).
+    const seriesJ = new Set(j.series || []), seriesVues = new Set();
+    const tries = res.sort((a, b) => b[0] - a[0]).map((x) => x[1]);
+    const tete = [], apres = [];
+    tries.forEach((c) => {
+      const ss = (c.series || []).filter((i) => !seriesJ.has(i));
+      if (!(j.suites || []).includes(c.id) && ss.length && ss.some((i) => seriesVues.has(i))) { apres.push(c); return; }
+      ss.forEach((i) => seriesVues.add(i));
+      tete.push(c);
+    });
+    return tete.concat(apres).slice(0, max);
   }
 
   async function recommander(base, e) {
@@ -1872,7 +1886,11 @@ ${proches.length ? `<h2>Après ${esc(j.titre)}, on te conseille</h2><ul>${proche
     if (base.histoire && c.histoire && base.histoire >= 40 && c.histoire * 8 <= base.histoire) e += 3;
     const bs = base.sujets || [], cs = c.sujets || [];
     if ((bs.includes('3d') && cs.includes('2d') && !cs.includes('3d')) || (bs.includes('2d') && !bs.includes('3d') && cs.includes('3d') && !cs.includes('2d'))) e += 4; // Momodora n'est pas « comme Elden Ring »
+    if (bs.includes('3d') && !bs.includes('iso') && cs.includes('iso') && !cs.includes('3d')) e += 3; // vue de dessus après un monde en 3D (pas Dredge après Red Dead)
     if (c.gacha && !base.gacha) e += 16; // jamais Wuthering Waves après Elden Ring
+    // L'univers : après un jeu de fantasy (Zelda), pas L.A. Noire, Death Stranding ou The Long Dark.
+    const FANTASY = ['fantasy', 'medieval', 'magie', 'mythologie', 'dragons'];
+    if (bs.includes('fantasy') && !cs.some((k) => FANTASY.includes(k))) e += 6;
     if (cs.includes('ambiance') && !bs.includes('ambiance')) e += 4; // un jeu de soirée pour un jeu de soirée (pas Mario Party après Hearthstone)
     if (base.inde && !c.inde) e += 5; // après Bastion, Transistor ou Hades avant Horizon
     if ((base.tags || []).includes('Vue iso') && !(c.tags || []).includes('Vue iso') && !(base.tags || []).includes('Tir')) e += 4;
@@ -1964,8 +1982,9 @@ ${proches.length ? `<h2>Après ${esc(j.titre)}, on te conseille</h2><ul>${proche
         if (!suite && !voisin && !(similaire && p >= 1) && p < seuilBase) continue;
         // Un voisin ou un « similaire » qui n'a pas ce qui définit le jeu (Red Dead Redemption 2 pour The Witcher 3) perd son bonus.
         const identiteOk = (!idBase || (c.tags || []).includes(idBase)) && (!idSujetBase || (c.sujets || []).includes(idSujetBase));
-        lien = p * 2.5 + (suite ? 16 : voisin ? (identiteOk ? 8 : 2) : 0) + (similaire ? (identiteOk ? 10 : 2) : 0) + baseHum.reduce((acc, h) => acc + Math.min((c.hum || {})[h] || 0, (base.hum || {})[h] || 0) / 15, 0);
-        if (!suite) lien -= ecartAvec(base, c, idBase, idSujetBase, baseTags);
+        const ecartC = suite ? 0 : ecartAvec(base, c, idBase, idSujetBase, baseTags);
+        lien = p * 2.5 + (suite ? 16 : voisin ? (identiteOk && ecartC < 6 ? 8 : 2) : 0) + (similaire ? (identiteOk && ecartC < 6 ? 10 : 2) : 0) + baseHum.reduce((acc, h) => acc + Math.min((c.hum || {})[h] || 0, (base.hum || {})[h] || 0) / 15, 0);
+        if (!suite) lien -= ecartC;
         else lien -= retardEpoque(base, c) * 1.2; // « comme Tomb Raider (2013) » : pas l'épisode de 1996
       }
       if (f.j === 'solo' && !c.jSet.solo) continue;
