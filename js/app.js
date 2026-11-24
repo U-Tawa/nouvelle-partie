@@ -612,6 +612,13 @@
   }
 
   /* ---------- La lampe ---------- */
+  // Sur ordinateur, la lumière suit la souris. Sur téléphone, elle suit le doigt, puis l'inclinaison du téléphone
+  // (ou le défilement, si on n'a pas accès à l'inclinaison) : la salle obscure doit vivre aussi dans la main.
+  const tactile = matchMedia('(hover: none), (pointer: coarse)');
+  const lampesVues = new Set();
+  let incline = null; // dernière inclinaison du téléphone, en % de l'image
+  let doigtJusque = 0; // le doigt garde la main sur l'inclinaison quelques secondes
+
   function activerLampes(racine = document) {
     $$('[data-lampe]', racine).forEach((el) => {
       if (el.dataset.pret) return;
@@ -624,23 +631,100 @@
         el.style.setProperty('--y', y.toFixed(2) + '%');
         raf = Math.abs(tx - x) > 0.05 || Math.abs(ty - y) > 0.05 ? requestAnimationFrame(pas) : 0;
       };
-      el.addEventListener('pointermove', (e) => {
-        if (e.pointerType !== 'mouse') return;
-        const r = el.getBoundingClientRect();
-        tx = ((e.clientX - r.left) / r.width) * 100;
-        ty = ((e.clientY - r.top) / r.height) * 100;
-        if (!raf) raf = requestAnimationFrame(pas);
+      const viser = (nx, ny) => { tx = Math.max(4, Math.min(96, nx)); ty = Math.max(4, Math.min(96, ny)); if (!raf) raf = requestAnimationFrame(pas); };
+      const auDoigt = (cx, cy) => { const r = el.getBoundingClientRect(); viser(((cx - r.left) / r.width) * 100, ((cy - r.top) / r.height) * 100); };
+      el.addEventListener('pointermove', (e) => { if (e.pointerType === 'mouse') auDoigt(e.clientX, e.clientY); });
+      el.addEventListener('pointerleave', (e) => { if (e.pointerType === 'mouse') viser(62, 38); });
+      // Le doigt promène la lampe sur l'image.
+      const toucher = (e) => { const t = e.touches[0]; if (!t) return; doigtJusque = Date.now() + 2500; auDoigt(t.clientX, t.clientY); };
+      el.addEventListener('touchstart', toucher, { passive: true });
+      el.addEventListener('touchmove', toucher, { passive: true });
+      el.addEventListener('touchend', demanderInclinaison, { passive: true });
+      // Sans doigt ni inclinaison : la lumière descend doucement quand l'image remonte.
+      el._lampe = {
+        el,
+        repos() {
+          if (Date.now() < doigtJusque) return;
+          if (incline) { viser(incline.x, incline.y); return; }
+          if (!tactile.matches) return;
+          const r = el.getBoundingClientRect();
+          viser(62, 34 + Math.max(0, Math.min(1, -r.top / Math.max(1, r.height))) * 40);
+        },
+      };
+      lampesVues.add(el._lampe);
+      // La lumière s'allume quand l'image arrive.
+      if (!reduit.matches) { el.classList.add('eteinte'); requestAnimationFrame(() => requestAnimationFrame(() => el.classList.remove('eteinte'))); }
+    });
+    lampesVues.forEach((l) => { if (!l.el.isConnected) lampesVues.delete(l); });
+  }
+  const lampesAuRepos = () => lampesVues.forEach((l) => l.el.isConnected ? l.repos() : lampesVues.delete(l));
+  addEventListener('scroll', lampesAuRepos, { passive: true });
+
+  // L'inclinaison du téléphone déplace la lumière. Android la donne tout de suite ; l'iPhone la demande une fois,
+  // quand on touche une grande image (jamais au chargement de la page).
+  function suivreInclinaison() {
+    addEventListener('deviceorientation', (e) => {
+      if (e.gamma == null || e.beta == null || reduit.matches || !tactile.matches) return;
+      incline = { x: 50 + Math.max(-30, Math.min(30, e.gamma)) * 1.4, y: 40 + Math.max(-25, Math.min(25, e.beta - 50)) * 1.3 };
+      lampesAuRepos();
+    }, { passive: true });
+  }
+  let inclinaisonDemandee = false;
+  function demanderInclinaison() {
+    if (inclinaisonDemandee || reduit.matches) return;
+    inclinaisonDemandee = true;
+    const D = window.DeviceOrientationEvent;
+    if (D && typeof D.requestPermission === 'function') D.requestPermission().then((r) => { if (r === 'granted') suivreInclinaison(); }).catch(() => {});
+  }
+  if (tactile.matches && window.DeviceOrientationEvent && typeof DeviceOrientationEvent.requestPermission !== 'function') suivreInclinaison();
+
+  // Les jaquettes s'allument près de la lumière : sous la souris sur ordinateur, au centre de l'écran
+  // (ou sous le doigt) sur téléphone, quand on fait défiler une étagère ou la page.
+  const jaquettesVisibles = new Set();
+  let obsJaquettes = null, pointLumiere = null, rafJaquettes = 0;
+  function eclairerJaquettes() {
+    if (rafJaquettes) return;
+    rafJaquettes = requestAnimationFrame(() => {
+      rafJaquettes = 0;
+      const tact = tactile.matches;
+      if (!tact && !pointLumiere) return;
+      const px = pointLumiere ? pointLumiere.x : innerWidth / 2, py = pointLumiere ? pointLumiere.y : innerHeight * 0.45;
+      const R = tact ? Math.max(170, innerHeight * 0.34) : 360;
+      jaquettesVisibles.forEach((c) => {
+        if (!c.isConnected) { jaquettesVisibles.delete(c); return; }
+        const r = (c.firstElementChild || c).getBoundingClientRect();
+        const e = Math.max(0, 1 - Math.hypot(r.left + r.width / 2 - px, r.top + r.height / 2 - py) / R);
+        c.style.setProperty('--e', e.toFixed(2));
       });
-      el.addEventListener('pointerleave', () => { tx = 62; ty = 38; if (!raf) raf = requestAnimationFrame(pas); });
     });
   }
+  function suivreJaquettes(racine = document) {
+    if (!('IntersectionObserver' in window) || reduit.matches) return;
+    if (!obsJaquettes) {
+      obsJaquettes = new IntersectionObserver((entrees) => {
+        entrees.forEach((en) => { if (en.isIntersecting) jaquettesVisibles.add(en.target); else jaquettesVisibles.delete(en.target); });
+        eclairerJaquettes();
+      }, { rootMargin: '150px' });
+      document.documentElement.classList.add('jaquettes-lumiere');
+      addEventListener('scroll', eclairerJaquettes, { passive: true, capture: true }); // aussi les étagères qui défilent sur le côté
+      addEventListener('resize', eclairerJaquettes, { passive: true });
+    }
+    $$('.cover', racine).forEach((c) => { if (!c.dataset.lumiere) { c.dataset.lumiere = '1'; obsJaquettes.observe(c); } });
+  }
+  // Tout ce qui apparaît dans la page (nouvelle page, résultats d'une envie) profite de la lumière.
+  let attenteLumiere = 0;
+  new MutationObserver(() => {
+    if (attenteLumiere) return;
+    attenteLumiere = requestAnimationFrame(() => { attenteLumiere = 0; const m = $('#main'); if (m) { activerLampes(m); suivreJaquettes(m); eclairerJaquettes(); } });
+  }).observe(document.getElementById('main') || document.body, { childList: true, subtree: true });
 
   // La même lampe, mais pour toute la page : elle suit la souris partout, même quand on descend.
+  // Sur téléphone, elle suit le doigt pendant qu'il touche l'écran, puis s'éteint doucement.
   function lampeGlobale() {
     const el = $('#lampe-globale');
-    if (!el || !matchMedia('(hover: hover) and (pointer: fine)').matches) return;
+    if (!el) return;
     const calquesLampe = $$('.lg', el);
-    let tx = 0, ty = 0, x = 0, y = 0, raf = 0, vue = false;
+    let tx = 0, ty = 0, x = 0, y = 0, raf = 0, vue = false, extinction = 0;
     const poser = () => { const t = `translate3d(${x.toFixed(1)}px, ${y.toFixed(1)}px, 0)`; calquesLampe.forEach((c) => { c.style.transform = t; }); };
     const pas = () => {
       const k = reduit.matches ? 1 : 0.2;
@@ -649,15 +733,31 @@
       poser();
       raf = Math.abs(tx - x) > 0.4 || Math.abs(ty - y) > 0.4 ? requestAnimationFrame(pas) : 0;
     };
-    addEventListener('pointermove', (e) => {
-      if (e.pointerType !== 'mouse') return;
-      tx = e.clientX; ty = e.clientY;
-      if (!vue) { vue = true; x = tx; y = ty; poser(); document.documentElement.classList.add('lampe-active'); }
+    const allumer = (cx, cy, saut) => {
+      tx = cx; ty = cy;
+      if (saut || !vue) { vue = true; x = tx; y = ty; poser(); }
       el.classList.add('on');
+      pointLumiere = { x: cx, y: cy };
+      eclairerJaquettes();
       if (!raf) raf = requestAnimationFrame(pas);
-    }, { passive: true });
-    document.documentElement.addEventListener('mouseleave', () => el.classList.remove('on'));
-    addEventListener('blur', () => el.classList.remove('on'));
+    };
+    if (matchMedia('(hover: hover) and (pointer: fine)').matches) {
+      addEventListener('pointermove', (e) => {
+        if (e.pointerType !== 'mouse') return;
+        if (!vue) document.documentElement.classList.add('lampe-active');
+        allumer(e.clientX, e.clientY);
+      }, { passive: true });
+      document.documentElement.addEventListener('mouseleave', () => el.classList.remove('on'));
+      addEventListener('blur', () => el.classList.remove('on'));
+    } else if (!reduit.matches) {
+      el.classList.add('tactile');
+      const doigt = (e, saut) => { const t = e.touches[0]; if (!t) return; clearTimeout(extinction); allumer(t.clientX, t.clientY, saut); };
+      addEventListener('touchstart', (e) => doigt(e, true), { passive: true });
+      addEventListener('touchmove', (e) => doigt(e, false), { passive: true });
+      addEventListener('touchend', () => {
+        extinction = setTimeout(() => { el.classList.remove('on'); pointLumiere = null; eclairerJaquettes(); }, 650);
+      }, { passive: true });
+    }
   }
 
   /* ---------- Recommandation après un jeu fini ---------- */
@@ -678,6 +778,8 @@
     TOUS.forEach((j) => (j.sujets || []).forEach((k) => { n[k] = (n[k] || 0) + 1; }));
     return Object.fromEntries(Object.entries(n).map(([k, c]) => [k, Math.max(0.3, Math.min(3, Math.log2(TOUS.length / c) * 0.45))]));
   })();
+  // Combien d'années de trop un jeu a par rapport au jeu de référence : 0 jusqu'à 8 ans plus vieux, plafonné à 18.
+  const retardEpoque = (base, c) => (base && base.annee && c.annee ? Math.min(18, Math.max(0, base.annee - c.annee - 8)) : 0);
   // Deux RPG de familles différentes se ressemblent moins : un CRPG n'est pas Elden Ring, un RPG occidental n'est pas un JRPG.
   const ecartRpg = (a, b) => {
     if (!(a.tags || []).includes('RPG') || !(b.tags || []).includes('RPG')) return 0;
@@ -758,6 +860,9 @@
         if (suite) s += 3;
         if (proche) s += 3;
         s += pop * 0.6;
+        // Après un jeu de 2019, pas un jeu de 1990 : plus il est vieux par rapport au jeu fini, moins il remonte
+        // (rien jusqu'à 8 ans d'écart, puis de plus en plus ; les jeux plus récents ne sont jamais pénalisés).
+        if (!suite) s -= retardEpoque(base, c) * 0.4;
         const humVise = hum.find((h) => ((c.hum || {})[h] || 0) >= 20);
         if (fort) { court = cap(c.forts[fort]) + '.'; raison = `Tu as aimé ${FORTS[fort]} dans ${tc}. ${court}`; }
         else if (suite) { raison = `Après ${tc}, c'est la suite qu'on te conseille.`; court = `À lancer juste après ${tc}.`; }
@@ -1660,6 +1765,7 @@
         const identiteOk = (!idBase || (c.tags || []).includes(idBase)) && (!idSujetBase || (c.sujets || []).includes(idSujetBase));
         lien = p * 2.5 + (suite ? 16 : voisin ? (identiteOk ? 8 : 2) : 0) + (similaire ? (identiteOk ? 10 : 2) : 0) + baseHum.reduce((acc, h) => acc + Math.min((c.hum || {})[h] || 0, (base.hum || {})[h] || 0) / 15, 0);
         if (!suite) {
+          lien -= retardEpoque(base, c) * 0.9; // « comme A Plague Tale » : pas un jeu des années 90
           if (idBase && !(c.tags || []).includes(idBase)) lien -= 9;
           if (base.vueFps === 2 && !c.vueFps) lien -= 6; // « comme Doom » : un FPS, pas Dead Space
           if (idSujetBase && !(c.sujets || []).includes(idSujetBase)) lien -= 10;
@@ -2384,7 +2490,7 @@
   const dateFr = (iso) => (iso ? iso.split('-').reverse().join('/') : '');
   if (CAT) $('#credit-donnees').textContent = `Catalogue : IGDB.com (${nb(TOUS.length)} jeux, mis à jour le ${dateFr(CAT.date)}).${window.TEXTES_FR ? ' Présentations : éditeurs (Steam) et Wikipédia (CC BY-SA).' : ''}${ABO ? ` Game Pass : liste Xbox France du ${dateFr(ABO.date)}.` : ''}`;
   // Pour les tests automatiques (outils/), sans effet sur le site.
-  window.__np = { TOUS, PAR_ID, filtrer, comprendre, proximite, voisins, oeuvre: (c) => oeuvre(c) };
+  window.__np = { TOUS, PAR_ID, filtrer, comprendre, proximite, voisins, oeuvre: (c) => oeuvre(c), recommander: (b, e) => recommander(b, e) };
   autocomplete($('#q'), $('#q-liste'), (j) => { $('#q').value = ''; location.hash = '#/jeu/' + j.id; });
   window.addEventListener('hashchange', () => { if (!location.hash.startsWith('#/recherche')) $('#q').value = ''; });
   window.addEventListener('hashchange', naviguer);

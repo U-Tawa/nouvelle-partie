@@ -76,23 +76,27 @@ p { margin: 0; text-wrap: pretty; }
 .sur-titre { font-family: var(--mono); font-size: 14px; color: var(--lampe); letter-spacing: 0.04em; }
 .cartel dd a { color: var(--texte); text-decoration-color: var(--lampe); text-underline-offset: 3px; }
 
-/* ---------- La lampe (lumière qui suit le curseur) ---------- */
-.lamp { position: relative; overflow: hidden; background: #070606; --x: 62%; --y: 38%; --r: clamp(280px, 34vw, 640px); }
+/* ---------- La lampe (lumière qui suit le curseur, le doigt ou l'inclinaison du téléphone) ---------- */
+@property --r { syntax: '<length>'; inherits: true; initial-value: 0px; }
+.lamp { position: relative; overflow: hidden; background: #070606; --x: 62%; --y: 38%; --r: clamp(280px, 34vw, 640px); transition: --r 1.3s cubic-bezier(0.2, 0.7, 0.2, 1); }
+.lamp.eteinte { --r: 0px; transition: none; }
+@media (hover: none), (pointer: coarse) { .lamp { --r: clamp(150px, 46vw, 420px); } }
 .lamp > img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .lamp .lamp-base { filter: brightness(0.3) saturate(0.22) contrast(1.05); }
 .lamp .lamp-lit { -webkit-mask-image: radial-gradient(circle var(--r) at var(--x) var(--y), #000 0%, rgba(0, 0, 0, 0.9) 30%, rgba(0, 0, 0, 0.35) 62%, transparent 82%); mask-image: radial-gradient(circle var(--r) at var(--x) var(--y), #000 0%, rgba(0, 0, 0, 0.9) 30%, rgba(0, 0, 0, 0.35) 62%, transparent 82%); }
 .lamp .lamp-voile { position: absolute; inset: 0; background: linear-gradient(to top, var(--fond) 0%, rgba(14, 13, 12, 0.55) 20%, rgba(14, 13, 12, 0) 45%), linear-gradient(to right, rgba(14, 13, 12, 0.5) 0%, rgba(14, 13, 12, 0) 50%); pointer-events: none; }
 .lamp.sans-image .lamp-base, .lamp.sans-image .lamp-lit { display: none; }
-@media (hover: none) { .lamp .lamp-lit { -webkit-mask-image: none; mask-image: none; filter: brightness(0.7); } }
 /* La lampe qui suit la souris partout, même en descendant : la pièce s'assombrit doucement autour. */
 .lampe-globale { position: fixed; inset: 0; z-index: 25; pointer-events: none; overflow: hidden; opacity: 0; transition: opacity 0.6s ease; }
 .lampe-globale.on { opacity: 1; }
 .lampe-globale .lg { position: absolute; left: -100vw; top: -100vh; width: 200vw; height: 200vh; will-change: transform; }
 .lg-ombre { background: radial-gradient(circle at center, rgba(7, 6, 5, 0) 0, rgba(7, 6, 5, 0) 150px, rgba(7, 6, 5, 0.2) 380px, rgba(7, 6, 5, 0.42) 820px, rgba(7, 6, 5, 0.5) 1400px); }
-.lg-chaud { background: radial-gradient(circle at center, rgba(255, 176, 88, 0.075) 0, rgba(255, 176, 88, 0.03) 200px, rgba(255, 176, 88, 0) 420px); mix-blend-mode: screen; }
-.lampe-active .cover img { filter: brightness(0.82) saturate(0.7); }
-.lampe-active .cover:hover img, .lampe-active .cover:focus-visible img { filter: none; }
-@media (hover: none), (pointer: coarse) { .lampe-globale { display: none; } }
+.lg-chaud { background: radial-gradient(circle at center, rgba(255, 176, 88, 0.1) 0, rgba(255, 176, 88, 0.04) 200px, rgba(255, 176, 88, 0) 440px); mix-blend-mode: screen; }
+/* Sur téléphone : une lueur chaude sous le doigt, la pièce s'assombrit à peine, puis tout se rallume. */
+.lampe-globale.tactile { transition: opacity 0.9s ease; }
+.lampe-globale.tactile .lg-ombre { opacity: 0.55; }
+.lampe-globale.tactile .lg-chaud { background: radial-gradient(circle at center, rgba(255, 176, 88, 0.16) 0, rgba(255, 176, 88, 0.06) 120px, rgba(255, 176, 88, 0) 300px); }
+.lampe-globale.tactile.on { transition: opacity 0.25s ease; }
 @media (prefers-reduced-motion: reduce) { .lamp .lamp-lit { -webkit-mask-image: none; mask-image: none; filter: brightness(0.7); } }
 
 /* ---------- Accueil : héros ---------- */
@@ -124,6 +128,9 @@ p { margin: 0; text-wrap: pretty; }
 .cover .c-t { font-family: var(--titre); font-weight: 700; font-size: 21px; line-height: 1.02; }
 .cover .c-m { font-family: var(--mono); font-size: 13px; color: var(--texte-2); }
 @media (hover: none) { .cover img { filter: none; } }
+/* Les jaquettes s'allument près de la lumière (--e de 0 à 1, calculé par la page) : sous la souris, ou au centre de l'écran sur téléphone. */
+.jaquettes-lumiere .cover img { filter: brightness(calc(0.62 + 0.38 * var(--e, 0))) saturate(calc(0.55 + 0.45 * var(--e, 0))); transition: filter 0.3s ease; }
+.jaquettes-lumiere .cover:hover img, .jaquettes-lumiere .cover:focus-visible img, .jaquettes-lumiere .cover:active img { filter: none; }
 .img-secours { width: 100%; height: 100%; display: flex; align-items: flex-end; padding: 10px; font-family: var(--titre); font-weight: 700; font-size: 20px; line-height: 1; background: repeating-linear-gradient(135deg, #1b1916 0 12px, #181614 12px 24px); color: var(--texte-2); }
 
 /* ---------- Accueil : suites ---------- */
