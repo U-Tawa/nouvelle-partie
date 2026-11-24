@@ -1,0 +1,15 @@
+{
+  "name": "Nouvelle Partie +",
+  "short_name": "Nouvelle Partie",
+  "description": "Dis le jeu que tu viens de finir. On te propose le suivant.",
+  "lang": "fr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#0E0D0C",
+  "theme_color": "#0E0D0C",
+  "icons": [
+    { "src": "icone-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icone-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" }
+  ]
+}

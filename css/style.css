@@ -543,3 +543,28 @@ p { margin: 0; text-wrap: pretty; }
   .fini form:has(.choix-verdict input:checked) .envoi { position: sticky; bottom: calc(60px + env(safe-area-inset-bottom)); z-index: 5; margin: 0 calc(-1 * var(--marge)); padding: 14px var(--marge) 12px; background: linear-gradient(to top, var(--fond) 70%, rgba(14, 13, 12, 0)); }
   .fini form:has(.choix-verdict input:checked) .envoi .btn { width: 100%; justify-content: center; }
 }
+
+/* ---------- Pages d'information (sources, confidentialité, mentions légales) ---------- */
+.page-info { max-width: 680px; padding: 56px 0 8px; }
+.page-info h1 { font-family: var(--titre); font-size: clamp(40px, 6vw, 64px); line-height: 0.95; margin: 0 0 28px; }
+.page-info h2 { font-family: var(--titre); font-size: 26px; margin: 36px 0 10px; }
+.page-info p, .page-info li { color: var(--texte-2); line-height: 1.65; }
+.page-info b { color: var(--texte); font-weight: 600; }
+.page-info a { color: var(--lampe); text-underline-offset: 3px; }
+.page-info ul { padding-left: 20px; }
+.pied-liens { display: flex; flex-wrap: wrap; gap: 6px 22px; }
+.pied-liens a { display: inline-block; padding: 6px 0; }
+/* Sauvegarde du journal */
+.sauvegarde { display: grid; gap: 12px; max-width: 720px; }
+.sauvegarde p { margin: 0; }
+.sauvegarde-actions { display: flex; flex-wrap: wrap; gap: 10px; }
+.sauvegarde-actions label.btn { cursor: pointer; }
+
+/* La version simple d'une fiche, écrite pour Google : visible le temps que le site se charge. */
+.pre { padding-top: 48px; padding-bottom: 48px; }
+.pre h2 { font-family: var(--titre); font-size: 28px; margin: 32px 0 10px; }
+.pre ul { padding-left: 20px; }
+.pre h1 { font-family: var(--titre); font-size: clamp(40px, 6vw, 72px); line-height: 0.95; margin: 0 0 12px; }
+.pre p, .pre li { color: var(--texte-2); line-height: 1.6; }
+.pre a { color: var(--lampe); }
+.captures:focus-visible { outline: 2px solid var(--lampe); outline-offset: 4px; }

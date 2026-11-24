@@ -2,14 +2,29 @@
 <html lang="fr">
 <head>
 <meta charset="utf-8">
+<base href="/nouvelle-partie/">
+<meta name="np-base" content="/nouvelle-partie/">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0E0D0C">
-<meta name="robots" content="noindex, nofollow">
 <meta name="color-scheme" content="dark">
-<title>Nouvelle Partie +</title>
-<meta name="description" content="Tu viens de finir un jeu ? Note-le, dis ce que tu en as pensé, et trouve le suivant. Ou cherche un jeu selon ton envie du moment.">
+<title>Nouvelle Partie + : à quoi jouer après ton dernier jeu ?</title>
+<meta name="description" content="Dis le jeu que tu viens de finir, ou ce qui te tente ce soir : on te propose le suivant, avec ses raisons. Sans compte et sans pub.">
+<link rel="icon" href="icone-48.png" sizes="48x48" type="image/png">
+<link rel="apple-touch-icon" href="icone-apple.png">
+<link rel="manifest" href="manifeste.webmanifest">
 <link rel="preload" href="fonts/big-shoulders.woff2" as="font" type="font/woff2" crossorigin>
 <link rel="stylesheet" href="css/style.css">
+<script>document.documentElement.classList.add('js')</script>
+<link rel="canonical" href="https://u-tawa.github.io/nouvelle-partie/">
+<meta property="og:site_name" content="Nouvelle Partie +">
+<meta property="og:locale" content="fr_FR">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Nouvelle Partie + : à quoi jouer après ton dernier jeu ?">
+<meta property="og:description" content="Dis le jeu que tu viens de finir, ou ce qui te tente ce soir : on te propose le suivant, avec ses raisons. Sans compte et sans pub.">
+<meta property="og:url" content="https://u-tawa.github.io/nouvelle-partie/">
+<meta property="og:image" content="https://u-tawa.github.io/nouvelle-partie/apercu.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="robots" content="noindex, nofollow">
 </head>
 <body>
 <a class="skip" href="#main">Aller au contenu</a>
@@ -29,7 +44,6 @@
       <a href="#/journal" data-nav="journal">Mon journal <span class="count nb-journal" id="nb-journal"></span></a>
     </nav>
     <button type="button" class="ouvrir-recherche" id="ouvrir-recherche" aria-controls="q" aria-expanded="false"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="11" cy="11" r="7"></circle><path d="M20 20l-3.5-3.5"></path></svg><span class="sr">Chercher un jeu</span></button>
-    <a href="#/connexion" data-nav="connexion" id="lien-compte" class="lien-compte">Se connecter</a>
   </div>
 </header>
 <!-- Sur téléphone : la navigation en bas de l'écran, sous le pouce. -->
@@ -40,11 +54,12 @@
   <a href="#/journal" data-nav="journal"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3.5h11a1 1 0 011 1v15a1 1 0 01-1 1H6z M9 3.5v17"/></svg>Journal<span class="count nb-journal"></span></a>
 </nav>
 
-<main id="main" tabindex="-1"></main>
+<main id="main" tabindex="-1"><div class="pre wrap"><h1>Et toi ? À quoi tu joues ?</h1><p>Dis-nous le jeu que tu viens de finir et ce que tu en as pensé. On te propose le suivant.</p><p><a href="envie">Rien fini en ce moment ? Dis ce qui te tente</a> · <a href="explorer">Explorer les jeux</a></p></div></main>
 
 <footer class="pied">
   <div class="pied-in">
-    <p>Nouvelle Partie + · prototype</p>
+    <p>Nouvelle Partie +</p>
+    <p class="pied-liens"><a href="#/sources">Sources et crédits</a><a href="#/confidentialite">Confidentialité</a><a href="#/mentions-legales">Mentions légales</a></p>
     <p id="credit-donnees">Avis, humeurs et pourcentages : données d'exemple. Durées indicatives. Images des jeux : Steam.</p>
   </div>
 </footer>
@@ -53,7 +68,7 @@
 <div class="lampe-globale" id="lampe-globale" aria-hidden="true"><div class="lg lg-ombre"></div><div class="lg lg-chaud"></div></div>
 
 <script src="js/data.js"></script>
-<script src="data/catalogue.js"></script>
+<script src="data/catalogue-pret.js"></script>
 <script src="data/bibliotheque.js"></script>
 <script src="data/abonnements.js"></script>
 <script src="data/textes/index.js"></script>

@@ -5,10 +5,14 @@
    Quand le catalogue est là, les jeux de la démo gardent leurs textes et le reste vient d'IGDB. */
 (() => {
   'use strict';
+  performance.mark('np-debut');
 
   const DEMO = window.JEUX || [];
   const FORTS = window.FORTS, HUM = window.HUMEURS;
-  const CAT = window.CATALOGUE && window.CATALOGUE.jeux ? window.CATALOGUE : null;
+  // En ligne, le catalogue arrive déjà préparé (catalogue-pret.js, fabriqué par la construction du site) :
+  // le téléphone n'a pas à refaire les corrections des 27 000 jeux à chaque visite.
+  const PRET = window.CATALOGUE_PRET && window.CATALOGUE_PRET.colonnes ? window.CATALOGUE_PRET : null;
+  const CAT = window.CATALOGUE && window.CATALOGUE.jeux ? window.CATALOGUE : PRET ? PRET.cat : null;
   const $ = (s, el = document) => el.querySelector(s);
   const $$ = (s, el = document) => [...el.querySelectorAll(s)];
   const main = $('#main');
@@ -18,6 +22,13 @@
   const norm = (s) => String(s).toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[’']/g, "'");
   const cle = (s) => norm(s).replace(/[^a-z0-9]+/g, ' ').trim();
   const cap = (s) => (s ? s[0].toUpperCase() + s.slice(1) : '');
+
+  /* ---------- Adresses ---------- */
+  // En ligne, de vraies adresses que Google lit et qu'on partage (/jeu/final-fantasy-vi-426).
+  // Sur le PC (le fichier ouvert en double-clic), les mêmes pages en « # » (#/jeu/i426).
+  const BASE = (document.querySelector('meta[name="np-base"]') || {}).content || '';
+  const CHEMINS = !!BASE && /^https?:$/.test(location.protocol);
+  const slug = (s) => cle(s).replace(/ /g, '-').slice(0, 70).replace(/-+$/, '') || 'jeu';
   const nb = (n) => Number(n).toLocaleString('fr-FR');
   const pl = (n, un, plusieurs) => (n > 1 ? plusieurs : un);
 
@@ -166,6 +177,58 @@
     return h;
   }
 
+  /* ---------- Le catalogue préparé : en colonnes, sans rien perdre ---------- */
+  // Chaque champ des jeux devient une colonne. Les textes qui se répètent (genres, familles, machines) sont écrits une fois.
+  function emballer(liste) {
+    const n = liste.length, cles = [];
+    liste.forEach((j) => Object.keys(j).forEach((k) => { if (!cles.includes(k)) cles.push(k); }));
+    const colonnes = {};
+    cles.forEach((k) => {
+      const v = liste.map((j) => (Object.prototype.hasOwnProperty.call(j, k) ? j[k] : undefined));
+      const presents = v.filter((x) => x !== undefined);
+      const mots = (arr) => { const d = [], ix = new Map(); return { d, code: (s) => { if (!ix.has(s)) { ix.set(s, d.length); d.push(s); } return ix.get(s); } }; };
+      const pareille = cles.find((k2) => k2 !== k && colonnes[k2] && colonnes[k2].brut && colonnes[k2].brut.every((x, i) => x === v[i]));
+      if (pareille) {
+        colonnes[k] = { t: '=', k: pareille }; // « populaire » vaut « nbNotes » : écrit une fois
+      } else if (k === 'id' && liste.every((j) => j.id)) {
+        // « i426 » pour le jeu IGDB 426 : seules les exceptions (les jeux de la démo) sont écrites
+        colonnes[k] = { t: 'id', e: liste.reduce((o, j, i) => { if (j.id !== 'i' + j.igdb) o[i] = j.id; return o; }, {}) };
+      } else if (presents.every((x) => typeof x === 'boolean')) {
+        // Booléens : une lettre par jeu (1 vrai, 0 faux, . absent)
+        colonnes[k] = { t: 'b', v: v.map((x) => (x === true ? '1' : x === false ? '0' : '.')).join('') };
+      } else if (presents.every((x) => typeof x === 'number')) {
+        colonnes[k] = { t: 'n', v: v.map((x) => (x === undefined ? null : x)) };
+      } else if (presents.every((x) => typeof x === 'string')) {
+        const m = mots(); const codes = v.map((x) => (x === undefined ? -1 : m.code(x)));
+        // Des textes presque tous différents (titres, jaquettes) : tels quels, sans dictionnaire
+        colonnes[k] = m.d.length > n / 3 ? { t: 'S', v: v.map((x) => (x === undefined ? null : x)) } : { t: 's', v: codes, d: m.d };
+      } else if (presents.every((x) => Array.isArray(x) && x.every((y) => typeof y === 'string'))) {
+        const m = mots(); colonnes[k] = { t: 'as', v: v.map((x) => (x === undefined ? null : x.map(m.code))), d: m.d };
+      } else {
+        // Le reste (objets, listes de nombres) : chaque valeur écrite en JSON, une fois par valeur différente
+        const m = mots(); colonnes[k] = { t: 'j', v: v.map((x) => (x === undefined ? -1 : m.code(JSON.stringify(x)))), d: m.d };
+      }
+      if (colonnes[k].t === 'n') Object.defineProperty(colonnes[k], 'brut', { value: v }); // pour repérer les colonnes identiques, pas écrit
+    });
+    return { n, cles, colonnes };
+  }
+  function deballer(paquet) {
+    const liste = Array.from({ length: paquet.n }, () => ({}));
+    // « id » se déduit d'« igdb » : on le remplit en dernier
+    [...paquet.cles.filter((k) => k !== 'id'), 'id'].forEach((k) => {
+      let c = paquet.colonnes[k];
+      if (c.t === '=') c = paquet.colonnes[c.k];
+      if (c.t === 'b') { for (let i = 0; i < c.v.length; i++) { const x = c.v[i]; if (x !== '.') liste[i][k] = x === '1'; } }
+      else if (c.t === 'id') liste.forEach((j, i) => { j.id = c.e[i] || 'i' + j.igdb; });
+      else if (c.t === 'n') c.v.forEach((x, i) => { if (x !== null) liste[i][k] = x; });
+      else if (c.t === 'S') c.v.forEach((x, i) => { if (x !== null) liste[i][k] = x; });
+      else if (c.t === 's') c.v.forEach((x, i) => { if (x >= 0) liste[i][k] = c.d[x]; });
+      else if (c.t === 'as') c.v.forEach((x, i) => { if (x) liste[i][k] = x.map((y) => c.d[y]); });
+      else { const vals = c.d.map((x) => x); c.v.forEach((x, i) => { if (x >= 0) liste[i][k] = JSON.parse(vals[x]); }); }
+    });
+    return liste;
+  }
+
   /* ---------- Construction de la liste unique de jeux ---------- */
   const TOUS = [];
   const PAR_ID = {};
@@ -207,11 +270,19 @@
   // Gratuits sur Steam (importer-textes.bat), en plus de la mention « free-to-play » d'IGDB.
   const GRATUITS_STEAM = new Set((window.TEXTES_FR && window.TEXTES_FR.gratuits) || []);
 
+  performance.mark('np-avant-catalogue');
+  if (PRET) {
+    deballer(PRET).forEach((j) => { TOUS.push(j); PAR_ID[j.id] = j; if (/^i\d+$/.test(j.id)) DEPUIS_IGDB[j.id.slice(1)] = j.id; });
+    PRET.depuisIgdb.forEach(([n, id]) => { DEPUIS_IGDB[n] = id; });
+  } else {
   if (CAT) {
     const P = CAT.plateformes, Gn = CAT.genres, Th = CAT.themes, Et = CAT.etiquettes, Mo = CAT.modes;
     const STEAM_IDS = CAT.steam || {};
+    // IGDB garde le titre américain de l'époque : « Final Fantasy III » (Super Nintendo, 1994), c'est Final Fantasy VI.
+    const TITRES_CORRIGES = { 426: 'Final Fantasy VI' };
     CAT.jeux.forEach((r) => {
-      const [id, nom, annee, jaq, pl, ge, th, et, mo, note, nbNotes, histoireBrute, series, aCotesBrut] = r;
+      const [id, nomIgdb, annee, jaq, pl, ge, th, et, mo, note, nbNotes, histoireBrute, series, aCotesBrut] = r;
+      const nom = TITRES_CORRIGES[id] || nomIgdb;
       const g = ge.map((i) => Gn[i]), t = th.map((i) => (Th[i].startsWith('4X') ? '4X' : Th[i])), e = et.map((i) => Et[i]), m = mo.map((i) => Mo[i]);
       const jx = joueursIgdb(g, e, m);
       if (/^counter-strike|rainbow six:? siege|^valorant$|^overwatch\b|^team fortress/i.test(nom)) jx.pvp = 3; // le cœur du jeu, même avec un mode solo
@@ -343,6 +414,16 @@
   // Avec le vrai catalogue, aucun chiffre inventé : les verdicts, pourcentages d'humeurs et avis de la démo étaient des exemples.
   // On garde ce qui est rédigé (présentation, points forts, suites conseillées) ; les humeurs deviennent notre estimation.
   if (CAT) TOUS.forEach((j) => { if (j.demo) { delete j.verdicts; delete j.nbAvis; j.avis = []; j.humEstime = true; j.humRedac = true; } });
+  }
+  performance.mark('np-apres-boucle');
+  // Pour la construction du site en ligne : l'état des jeux juste après les corrections.
+  // Fait seulement pendant la construction (jamais chez un joueur), avec un contrôle : déballer redonne exactement les mêmes jeux.
+  const etatApresBoucle = window.__CONSTRUCTION && !PRET && CAT ? (() => {
+    const canon = (x) => (Array.isArray(x) ? x.map(canon) : x && typeof x === 'object' ? Object.keys(x).sort().reduce((o, k) => { o[k] = canon(x[k]); return o; }, {}) : x);
+    const paquet = { cat: { date: CAT.date, paquets: CAT.paquets, steam: CAT.steam, series: CAT.series }, depuisIgdb: Object.entries(DEPUIS_IGDB).filter(([n, id]) => id !== 'i' + n).map(([n, id]) => [Number(n), id]), ...emballer(TOUS) };
+    const texte = JSON.stringify(paquet);
+    return { texte, identique: JSON.stringify(canon(TOUS)) === JSON.stringify(canon(deballer(JSON.parse(texte)))) };
+  })() : null;
   // Pour la recherche : « ff 7 » trouve « Final Fantasy VII », « gta 5 » trouve « Grand Theft Auto V ».
   const ROMAINS = { ii: 2, iii: 3, iv: 4, v: 5, vi: 6, vii: 7, viii: 8, ix: 9, x: 10, xi: 11, xii: 12, xiii: 13, xiv: 14, xv: 15, xvi: 16 };
   // Les abréviations des joueurs. Le texte est déjà découpé (« p5 » devient « p 5 »), d'où les espaces.
@@ -426,6 +507,7 @@
     const an = new Date().getFullYear();
     for (const j of TOUS) if (!j.demo && (!j.annee || j.annee > an)) j.ferme = true;
   }
+  performance.mark('np-apres-catalogue');
   const PAR_POPULARITE = [...TOUS].filter((j) => !j.fan && !j.doublon && !j.ferme).sort((a, b) => (b.populaire || 0) - (a.populaire || 0)); // sans les jeux de fans (on ne les propose jamais)
   // Une note donnée par 30 personnes ne vaut pas une note donnée par 3 000 : tant qu'il y a peu de notes,
   // on la rapproche de la moyenne (sinon « American Chopper » passe devant Zelda).
@@ -496,11 +578,11 @@
     });
   }
   const lienWiki = (titre) => 'https://fr.wikipedia.org/wiki/' + encodeURIComponent(titre.replace(/ /g, '_'));
-  function blocTexte(tx) {
+  function blocTexte(tx, steamId) {
     if (!tx) return '';
     const [texte, source, wiki] = tx;
-    const credit = source === 's' ? "La présentation de l'éditeur, sur Steam."
-      : source === 'w' ? `D'après Wikipédia (licence CC BY-SA). <a href="${lienWiki(wiki)}" target="_blank" rel="noopener">Lire l'article</a>`
+    const credit = source === 's' ? (steamId ? `Texte de l'éditeur, <a href="https://store.steampowered.com/app/${steamId}/" target="_blank" rel="noopener">sur Steam</a>.` : "Texte de l'éditeur, sur Steam.")
+      : source === 'w' ? `D'après <a href="${lienWiki(wiki)}" target="_blank" rel="noopener">l'article Wikipédia</a>, licence <a href="https://creativecommons.org/licenses/by-sa/4.0/deed.fr" target="_blank" rel="noopener">CC BY-SA 4.0</a>.`
       : source === 't' ? "Traduit de l'anglais par Nouvelle Partie +."
       : '';
     const plus = source !== 'w' && wiki ? ` <a href="${lienWiki(wiki)}" target="_blank" rel="noopener">L'article Wikipédia</a>` : '';
@@ -510,20 +592,21 @@
   const studioDe = (j, f) => j.studio || (f && f.dev && f.dev.join(', ')) || '';
 
   /* ---------- Journal et compte (gardés dans le navigateur) ---------- */
+  // L'adresse où les joueurs signalent une erreur (mentions légales, fiches). Vide : les liens « écris-nous » n'apparaissent pas.
+  const CONTACT = '';
   const CLE_JOURNAL = 'nouvelle-partie-journal';
   const CLE_COMPTE = 'nouvelle-partie-compte';
   const vide = () => ({ finis: {}, envies: [], passes: [] });
   const lireLocal = (k, defaut) => { try { return JSON.parse(localStorage.getItem(k) || 'null') || defaut; } catch (e) { return defaut; } };
   const ecrireLocal = (k, v) => { try { if (v == null) localStorage.removeItem(k); else localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* on continue en mémoire */ } };
   let journal = Object.assign(vide(), lireLocal(CLE_JOURNAL, {}));
-  let compte = lireLocal(CLE_COMPTE, null);
+  // Pas de compte tant qu'il n'y a pas de vrai serveur : le journal reste sur l'appareil.
+  // L'ancienne page de démonstration gardait un pseudo et un e-mail : on les efface.
+  ecrireLocal(CLE_COMPTE, null);
   function sauver() { ecrireLocal(CLE_JOURNAL, journal); majEntete(); }
   function majEntete() {
     const n = Object.keys(journal.finis).length;
     $$('.nb-journal').forEach((x) => { x.textContent = n ? String(n) : ''; });
-    const lien = $('#lien-compte');
-    if (compte) { lien.textContent = compte.pseudo; lien.href = '#/journal'; lien.classList.add('connecte'); lien.setAttribute('aria-label', `Connecté : ${compte.pseudo}, voir mon journal`); }
-    else { lien.textContent = 'Se connecter'; lien.href = '#/connexion'; lien.classList.remove('connecte'); lien.removeAttribute('aria-label'); }
   }
   function basculerEnvie(id) {
     const i = journal.envies.indexOf(id);
@@ -620,7 +703,7 @@
         const j = sel >= 0 ? items[sel] : tous.length === 1 || exact ? tous[0] : defaut() >= 0 ? items[0] : null;
         if (!tous.length) return; // la liste reste ouverte avec « Aucun jeu… »
         fermer();
-        if (j) choisir(j); else if (tous.length) { const h = pageResultats(); input.blur(); location.hash = h; }
+        if (j) choisir(j); else if (tous.length) { const h = pageResultats(); input.blur(); aller(h); }
       }
       else if (e.key === 'Escape') fermer();
     });
@@ -945,7 +1028,7 @@
   function sectionsAccueil() {
     const courts = PAR_POPULARITE.filter((x) => x.histoire && x.histoire <= 5).slice(0, 14);
     const aimes = CAT
-      ? [...TOUS].filter((x) => (x.nbNotes || 0) >= 150 && x.note && x.annee <= ANNEE).sort((a, b) => noteFiable(b) - noteFiable(a)).slice(0, 14)
+      ? uneVersion([...TOUS].filter((x) => (x.nbNotes || 0) >= 150 && x.note && x.annee <= ANNEE && !x.doublon && !x.ferme && !x.fan).sort((a, b) => noteFiable(b) - noteFiable(a))).slice(0, 14)
       : [...TOUS].sort((a, b) => b.verdicts[0] - a.verdicts[0]).slice(0, 12);
     const cles = ['detente', 'defouler', 'reflechir', 'emotion', 'evasion', 'defi', 'frissons', 'plusieurs', 'encoreune'];
     const paires = PAIRES.filter(([a, b]) => PAR_ID[a] && PAR_ID[b]);
@@ -991,23 +1074,15 @@
         </div>
       </section>
       ${sectionsAccueil()}`;
-    autocomplete($('#fini-q'), $('#fini-q-liste'), (g) => { location.hash = '#/fini/' + g.id; }, 'fini');
+    autocomplete($('#fini-q'), $('#fini-q-liste'), (g) => { aller('/fini/' + g.id); }, 'fini');
     return '';
   }
 
   // Exemples d'envies, montrés sous le champ de « Ce qui me tente ».
   const EXEMPLES_ENVIE = ['un truc court pour ce soir', 'me vider la tête après le boulot', 'une histoire qui prend aux tripes', 'à deux sur le canapé', 'un jeu gratuit entre potes', 'comme Hades mais plus calme'];
   /* ---------- Fiche d'un jeu ---------- */
-  async function fiche([id]) {
-    const j = PAR_ID[id];
-    if (!j) return introuvable();
-    const [f, tx] = await Promise.all([chargerFiche(j), chargerTexte(j)]);
-    const fait = journal.finis[id];
-    const veut = journal.envies.includes(id);
-    const hums = Object.entries(j.hum || {}).sort((a, b) => b[1] - a[1]);
-    const avis = [...(j.avis || [])];
-    if (fait && fait.phrase) avis.unshift({ pseudo: compte ? compte.pseudo : 'Toi', v: fait.v, aime: (fait.aime || [])[0], t: fait.phrase, spoil: fait.spoil });
-    const studio = studioDe(j, f);
+  // Les trois durées d'une fiche, calculées une seule fois pour la page et pour Google.
+  function dureesDe(j, f) {
     const ttb = f && f.ttb ? f.ttb : null;
     // Pas de durée pour un jeu sans fin (« League of Legends : ~14 452 h »), ni de chiffre absurde.
     // Même calcul que l'import : entre « en fonçant » et « normalement » (qui compte aussi les à-côtés).
@@ -1016,6 +1091,48 @@
     const histoire = j.sansFin ? 0 : j.histoire || (ttbHistoire && ttbHistoire <= 300 && Math.round(ttbHistoire)) || 0;
     const completBrut = j.sansFin || j.aCotes === -1 ? 0 : j.complet || (ttb && ttb[2] <= 500 && Math.round(ttb[2])) || 0;
     const complet = completBrut > histoire * 1.1 ? completBrut : 0; // « Tout faire » plus court que l'histoire : donnée fausse
+    return { histoire, aCotes, complet };
+  }
+  // Ce qui décrit un jeu en une phrase, pour Google et les aperçus de partage.
+  function descriptionJeu(j, tx) {
+    const texte = j.pitch || (tx && tx[0] ? String(tx[0]).replace(/\s+/g, ' ').trim() : '');
+    if (texte) return texte.length <= 158 ? texte : texte.slice(0, 157).replace(/[\s,;:.]+\S*$/, '') + '…';
+    return `${j.titre}${j.annee ? ` (${j.annee})` : ''}${j.genre ? `, ${j.genre.toLowerCase()}` : ''}${j.plateformes && j.plateformes.length ? ` sur ${j.plateformes.slice(0, 4).join(', ')}` : ''}. Durée, note, et les jeux à lancer après.`;
+  }
+  const titreJeu = (j) => `${j.titre}${j.annee ? ` (${j.annee})` : ''} : à quoi jouer après ?`;
+  // La version simple d'une fiche, écrite dans la page avant le chargement (pour Google et sans JavaScript).
+  async function pagePourGoogle(j) {
+    const [f, tx] = await Promise.all([chargerFiche(j), chargerTexte(j)]);
+    const { histoire, aCotes, complet } = dureesDe(j, f);
+    const studio = studioDe(j, f);
+    const proches = voisins(j, f, 8);
+    const durees = [histoire && `Histoire : ~${histoire} h`, aCotes && `avec les à-côtés : ~${aCotes} h`, complet && `tout faire : ~${complet} h`].filter(Boolean).join(', ');
+    const steamId = j.igdb && CAT && CAT.steam ? CAT.steam[j.igdb] : null;
+    const html = `<article class="pre wrap">
+<h1>${esc(j.titre)}</h1>
+<p>${[studio, j.annee, j.genre].filter(Boolean).map(esc).join(' · ')}</p>
+<ul>${j.plateformes && j.plateformes.length ? `<li>Sur ${esc(j.plateformes.join(', '))}</li>` : ''}${durees ? `<li>${durees}</li>` : ''}${j.note && (j.nbNotes || 0) >= 5 ? `<li>${j.note}/100, moyenne de ${nb(j.nbNotes)} notes de joueurs et de critiques (IGDB)</li>` : ''}${j.gratuit ? '<li>Gratuit</li>' : ''}</ul>
+${j.pitch ? `<p>${esc(j.pitch)}</p>` : blocTexte(tx, steamId)}
+${proches.length ? `<h2>Après ${esc(j.titre)}, on te conseille</h2><ul>${proches.map((c) => `<li><a href="${adresse('/jeu/' + c.id)}">${esc(c.titre)}</a>${c.annee ? ` (${c.annee})` : ''}</li>`).join('')}</ul>` : ''}
+<p><a href="${adresse('/fini/' + j.id)}">${j.sansFin ? "J'y ai joué" : "Je l'ai fini"} : quoi jouer après ?</a></p>
+</article>`;
+    return { id: j.id, texte: !!((tx && tx[0]) || j.pitch), pop: j.populaire || 0, chemin: adresse('/jeu/' + j.id), titre: titreJeu(j), description: descriptionJeu(j, tx), image: grandeImage(j, f) || jaquette(j, true) || '', html,
+      donnees: { '@context': 'https://schema.org', '@type': 'VideoGame', name: j.titre, ...(j.annee ? { datePublished: String(j.annee) } : {}), ...(j.plateformes ? { gamePlatform: j.plateformes } : {}), ...(j.genre ? { genre: j.genre } : {}), ...(studio ? { author: { '@type': 'Organization', name: studio } } : {}) } };
+  }
+
+  async function fiche([morceau]) {
+    const j = jeuDe(morceau);
+    if (!j) return introuvable();
+    const id = j.id;
+    const [f, tx] = await Promise.all([chargerFiche(j), chargerTexte(j)]);
+    descriptionPage = descriptionJeu(j, tx);
+    const fait = journal.finis[id];
+    const veut = journal.envies.includes(id);
+    const hums = Object.entries(j.hum || {}).sort((a, b) => b[1] - a[1]);
+    const avis = [...(j.avis || [])];
+    if (fait && fait.phrase) avis.unshift({ pseudo: 'Toi', v: fait.v, aime: (fait.aime || [])[0], t: fait.phrase, spoil: fait.spoil });
+    const studio = studioDe(j, f);
+    const { histoire, aCotes, complet } = dureesDe(j, f);
     const js = j.jSet;
     const joueurs = j.deuxSeulement ? 'à deux uniquement'
       : [js.solo && 'solo', js.coop ? 'en coop' : js.deux && 'à deux', js.canape && 'sur le même écran', js.pvp && "contre d'autres joueurs en ligne", !js.coop && !js.pvp && js.groupe && 'à plusieurs'].filter(Boolean).join(', ') || 'solo';
@@ -1055,7 +1172,7 @@
             ${j.demo ? ligne('Petites sessions', j.sessions ? 'oui' : 'plutôt non') : ''}${ligne('Joueurs', cap(joueurs) + multiMort)}${ligne('Prix', j.gratuit ? 'Gratuit (free-to-play)' : '')}${ligne('Attention', j.ferme && j.annee ? (j.annee > ANNEE ? 'Pas encore sorti' : /counter-strike|overwatch/i.test(j.titre) ? 'Remplacé par sa suite, il ne se joue plus' : 'Serveurs fermés, il ne se joue plus') : '')}${ligne('Plutôt pour', humsEstimees.length ? listeFr(humsEstimees) + (j.humRedac ? ' (notre estimation)' : " (d'après son genre)") : '')}${j.verdicts ? ligne('Note IGDB', j.note ? j.note + '/100 (' + nb(j.nbNotes) + ' notes)' : '') : ''}
           </dl>
           <div class="fiche-principal">
-            ${j.pitch ? `<p class="pitch">${esc(j.pitch)}</p>` : blocTexte(tx)}
+            ${j.pitch ? `<p class="pitch">${esc(j.pitch)}</p>` : blocTexte(tx, j.igdb && CAT && CAT.steam ? CAT.steam[j.igdb] : null)}
             ${j.verdicts || j.note ? `<section class="bloc" aria-label="Verdict des joueurs">
               ${j.verdicts ? `
               <div class="verdict-tete"><span class="grand-chiffre">${j.verdicts[0]} %</span><p>de coups de cœur sur ${nb(j.nbAvis)} avis</p></div>
@@ -1072,14 +1189,14 @@
               <h2>Ses points forts</h2>
               <dl class="forts">${Object.entries(j.forts).map(([k, t]) => `<dt>${cap(FORTS[k])}</dt><dd>${esc(cap(t))}.</dd>`).join('')}</dl>
             </section>` : ''}
-            ${captures.length ? `<section class="bloc"><h2>En images</h2><div class="captures">${captures.map((c) => `<img src="${IGDB_IMG}t_screenshot_med/${c}.jpg" alt="Capture d'écran de ${esc(j.titre)}" loading="lazy" data-ratio="16 / 9">`).join('')}</div></section>` : ''}
-            <section class="bloc">
-              <h2>Ce qu'ils en disent</h2>
+            ${captures.length ? `<section class="bloc"><h2>En images</h2><div class="captures" tabindex="0" role="group" aria-label="Captures d'écran de ${esc(j.titre)}">${captures.map((c) => `<img src="${IGDB_IMG}t_screenshot_med/${c}.jpg" alt="Capture d'écran de ${esc(j.titre)}" loading="lazy" data-ratio="16 / 9">`).join('')}</div></section>` : ''}
+            ${avis.length ? `<section class="bloc">
+              <h2>${(j.avis || []).length ? "Ce qu'ils en disent" : 'Ton avis'}</h2>
               ${avis.length
                 ? `<div class="avis">${avis.map((a) => `<blockquote${a.spoil ? ' class="spoil"' : ''}>${a.spoil ? '<button type="button" class="montrer-spoil" aria-expanded="false">Cet avis dévoile un moment clé. Le lire quand même</button>' : ''}<p${a.spoil ? ' hidden' : ''}>${esc(a.t)}</p><footer><b>${esc(a.pseudo)}</b>${a.v != null ? `<span class="tag ${a.v === 0 ? 'v0' : ''}">${VERDICTS[a.v]}</span>` : ''}${a.aime ? `<span>a préféré ${FORTS[a.aime]}</span>` : ''}</footer></blockquote>`).join('')}</div>`
-                : `<p class="sous">Personne n'a encore donné son avis ici. <a href="#/fini/${id}">${j.sansFin ? 'Tu y as joué ?' : "Tu l'as fini ?"} Le tien sera le premier.</a></p>`}
-            </section>
-            ${j.igdb && f && f.url ? `<p class="sous credit">Données : <a href="${esc(f.url)}" target="_blank" rel="noopener">fiche IGDB.com</a></p>` : ''}
+                : ''}
+            </section>` : ''}
+            ${(j.igdb && f && f.url) || CONTACT ? `<p class="sous credit">${j.igdb && f && f.url ? `Données : <a href="${esc(f.url)}" target="_blank" rel="noopener">fiche IGDB.com</a>. ` : ''}${CONTACT ? `Une erreur sur cette fiche ? <a href="mailto:${CONTACT}?subject=${encodeURIComponent('Erreur sur la fiche : ' + j.titre)}">Dis-le-nous</a>, on corrige.` : ''}</p>` : ''}
           </div>
         </div>
         ${autresSerie.length ? `<section class="section">
@@ -1094,7 +1211,7 @@
           }).join('')}</div>
         </section>` : ''}
       </div>`;
-    return j.titre;
+    return titreJeu(j);
   }
 
   /* ---------- J'ai fini un jeu ---------- */
@@ -1102,11 +1219,12 @@
     return `<label><input type="checkbox" name="${nom}" value="${valeur}" ${(coches || []).includes(valeur) ? 'checked' : ''}><span>${esc(cap(texte))}</span></label>`;
   }
 
-  function fini([id]) {
-    const j = PAR_ID[id];
+  function fini([morceau]) {
+    const j = jeuDe(morceau);
+    const id = j && j.id;
     if (!j) {
       main.innerHTML = `<div class="wrap"><div class="page-tete"><h1>Tu viens de finir quoi ?</h1><p class="sous">Tape le nom du jeu, on s'occupe du reste.</p><div style="max-width:640px">${champJeu('fini-q2', 'Le jeu que tu viens de finir', 'Le jeu que tu viens de finir')}</div></div></div>`;
-      autocomplete($('#fini-q2'), $('#fini-q2-liste'), (g) => { location.hash = '#/fini/' + g.id; }, 'fini');
+      autocomplete($('#fini-q2'), $('#fini-q2-liste'), (g) => { aller('/fini/' + g.id); }, 'fini');
       setTimeout(() => $('#fini-q2') && $('#fini-q2').focus(), 50);
       return "J'ai fini un jeu";
     }
@@ -1140,21 +1258,10 @@
             </fieldset>
             <div class="question">
               <label class="q" for="phrase">Ton avis en une phrase</label>
-              <p class="aide">Facultatif. Ce que tu dirais à un pote qui hésite à le lancer.</p>
+              <p class="aide">Facultatif. Ce que tu dirais à un pote qui hésite à le lancer. Elle reste dans ton journal.</p>
               <input class="phrase-avis" id="phrase" name="phrase" maxlength="160" autocomplete="off" value="${esc(deja.phrase || '')}" placeholder="Par exemple : dur au début, impossible à lâcher ensuite">
               <p class="compteur" id="compteur">${(deja.phrase || '').length} / 160</p>
-              <label class="case"><input type="checkbox" id="spoil" ${deja.spoil ? 'checked' : ''}><span>Mon avis dévoile un moment clé : le cacher par défaut</span></label>
             </div>
-            <fieldset class="question">
-              <legend>Deux infos pour aider les autres</legend>
-              <p class="aide">Facultatif. Ça aide ceux qui hésitent à le lancer.</p>
-              <div class="puces">
-                ${[['facile', 'facile à prendre en main'], ['accroche', "il faut s'accrocher au début"]].map(([v, t]) => `<label><input type="radio" name="prise" value="${v}" ${deja.prise === v ? 'checked' : ''}><span>${cap(t)}</span></label>`).join('')}
-              </div>
-              <div class="puces" style="margin-top:10px">
-                ${[['sessions', 'se joue par petites sessions'], ['soirees', 'plutôt en longues soirées']].map(([v, t]) => `<label><input type="radio" name="rythme" value="${v}" ${deja.rythme === v ? 'checked' : ''}><span>${cap(t)}</span></label>`).join('')}
-              </div>
-            </fieldset>
             <div class="envoi">
               <button class="btn principal" type="submit">Enregistrer et voir mon prochain jeu</button>
               <p class="note" id="note-envoi" role="status"></p>
@@ -1187,9 +1294,8 @@
         aime: $$('input[name="aime"]:checked', form).map((x) => x.value),
         hum: $$('input[name="hum"]:checked', form).map((x) => x.value),
         phrase: $('#phrase').value.trim(),
-        spoil: $('#spoil').checked || undefined,
-        prise: (form.querySelector('input[name="prise"]:checked') || {}).value,
-        rythme: (form.querySelector('input[name="rythme"]:checked') || {}).value,
+        // Ce qu'on avait déjà noté (version précédente du formulaire) est gardé tel quel.
+        spoil: (journal.finis[id] || {}).spoil, prise: (journal.finis[id] || {}).prise, rythme: (journal.finis[id] || {}).rythme,
         // Un avis sur un jeu « déjà joué avant » ne le fait pas compter dans « Ton année ».
         ...(journal.finis[id] && journal.finis[id].avant ? { avant: true } : { date: (journal.finis[id] && journal.finis[id].date) || new Date().toISOString() })
       };
@@ -1197,7 +1303,7 @@
       journal.finis[id] = entree;
       journal.envies = journal.envies.filter((x) => x !== id);
       sauver();
-      toast(premiereFois ? (compte ? 'Ajouté à ton journal.' : 'Ajouté à ton journal sur cet appareil. Crée un compte pour le garder partout.') : 'Ton avis est mis à jour.');
+      toast(premiereFois ? 'Ajouté à ton journal.' : 'Ton avis est mis à jour.');
       afficherProchain(j, entree);
     });
     return (j.sansFin ? "J'ai joué à " : "J'ai fini ") + j.titre;
@@ -1551,7 +1657,7 @@
     [/\banime\b|manga/, 'anime', 'Style anime'], [/mignon|kawaii|trop chou/, 'mignon', 'Mignon'], [/\bjrpg\b|rpg japonais/, 'jrpg', 'Un JRPG'],
     [/city ?builder|construire (?:une|ma) ville|batir (?:une|ma) ville|gerer (?:une|ma) ville/, 'citybuilder', 'Construire une ville'], [/choix qui comptent|choix importants|mes choix|choix moraux|plusieurs fins/, 'choix', 'Des choix qui comptent'],
     [/\bretro\b|old ?school/, 'retro', 'Style rétro'],
-    [/tour par tour/, 'tourpartour', 'Au tour par tour'], [/dessine a la main|fait main/, 'dessin', 'Dessiné à la main'], [/belle musique|bonne musique|bande-? ?son|\bost\b/, 'bandeson', 'Une belle bande-son'],
+    [/tour par tour/, 'tourpartour', 'Au tour par tour'], [/dessine a la main|fait main/, 'dessin', 'Dessiné à la main'], [/belle musique|bonne musique|bande-? ?son|bandes? originales?|\bost\b/, 'bandeson', 'Une belle bande-son'],
     [/historique|antiquite|egypte|rome antique|jeu d'epoque/, 'historique', 'Historique'], [/romance|histoire d'amour|romantique|dating/, 'romance', 'Romance'],
     [/drole|rigolo|humour|marrant|absurde/, 'comedie', 'Drôle'], [/infiltration|furtif|discretion/, 'infiltration', 'Infiltration'],
     [/survie|survival/, 'survie', 'Survie'], [/bac a sable|sandbox/, 'sandbox', 'Bac à sable'], [/science-? ?fiction|\bsci-? ?fi\b|futuriste/, 'sf', 'Science-fiction'],
@@ -1619,7 +1725,7 @@
     }
     if (a(/\bfps\b|premiere personne|vue subjective/)) f.vue = 'fps';
     if (a(/\binde\b|\bindie\b|independant/)) f.inde = '1';
-    if (a(/moins connus?|peu connus?|meconnus?|pepites?|cache(?:s|e|es)?\b|sous-? ?cotes?|underrated|\boriginal(?:e|aux)?\b(?<!bande originale)|atypique|\bovni\b|hors des sentiers|que personne ne connait|pas (?:un |les )?(?:grands? )?classiques?|confidentiel/)) f.connu = 'peu';
+    if (a(/moins connus?|peu connus?|meconnus?|pepites?|cache(?:s|e|es)?\b|sous-? ?cotes?|underrated|atypique|\bovni\b|hors des sentiers|que personne ne connait|pas (?:un |les )?(?:grands? )?classiques?|confidentiel/) || /\boriginal(?:e|aux)?\b/.test(t.replace(/bandes? originales?/g, ''))) f.connu = 'peu'; // sans « regarder en arrière » dans l'expression : les iPhone d'avant iOS 16.4 ne la comprennent pas
     else if (a(/triple ?a\b|\baaa\b|gros jeux?|grosses? productions?|blockbuster|gros budget/)) f.connu = 'gros';
     const anneeExacte = t.match(/(?:sortis?e?s?|de|en) (19[7-9]\d|20[0-3]\d)\b/) || t.match(/ (19[89]\d|20[0-3]\d) /);
     const depuis = t.match(/(?:depuis|apres|a partir de) (19[7-9]\d|20[0-3]\d)\b/);
@@ -2229,7 +2335,7 @@
       const t = $('#libre').value.trim();
       if (t) qs.set('t', t);
       if (tri) qs.set('tri', tri);
-      history.replaceState(null, '', '#/envie' + (qs.toString() ? '?' + qs : ''));
+      majAdresse('/envie' + (qs.toString() ? '?' + qs : ''));
     };
     $('#choix').addEventListener('click', (e) => {
       if (e.target.closest('[data-hasard]')) { tirage = 1 + Math.floor(Math.random() * 999983); maj(); return; }
@@ -2351,7 +2457,7 @@
       montres = 0;
       plus();
       const qs = new URLSearchParams(Object.entries({ g: f.g, d: f.d, p: f.p, j: jv, prix: $('#x-prix').value, tri: t }).filter(([, v]) => v && v !== 'populaires'));
-      history.replaceState(null, '', '#/explorer' + (qs.toString() ? '?' + qs : ''));
+      majAdresse('/explorer' + (qs.toString() ? '?' + qs : ''));
     };
     $$('.filtres select').forEach((s) => s.addEventListener('change', maj));
     $('#x-plus').addEventListener('click', plus);
@@ -2406,7 +2512,7 @@
       montres = 0;
       plus();
       const qs = new URLSearchParams(Object.entries({ q: serie < 0 ? q : '', serie: serie >= 0 ? serie : '', pour, tri: t === (serie >= 0 ? 'anciens' : 'pertinence') ? '' : t }).filter(([, v]) => v !== ''));
-      history.replaceState(null, '', '#/recherche?' + qs);
+      majAdresse('/recherche?' + qs);
     };
     const s = serie < 0 && q ? serieDe(q) : -1;
     if (s >= 0) $('#r-serie').innerHTML = `<a class="lien-fleche" href="#/recherche?serie=${s}${pour ? '&pour=' + pour : ''}">Toute la série ${esc(SERIES[s])}, dans l'ordre de sortie (${nb(JEUX_SERIE[s].length)} jeux) ${fleche}</a>`;
@@ -2416,89 +2522,20 @@
     return serie >= 0 ? SERIES[serie] : q ? 'Recherche : ' + q : 'Recherche';
   }
 
-  /* ---------- Connexion / inscription ---------- */
-  function connexion(_, params) {
-    if (compte && !params.get('mode')) { location.replace('#/journal'); return ''; }
-    const mode = params.get('mode') === 'inscription' ? 'inscription' : 'connexion';
-    const fond = PAR_ID.hollowknight || PAR_POPULARITE[0];
-    main.innerHTML = `
-      <div class="connexion">
-        <section class="connexion-art lamp" data-lampe aria-hidden="true">${calques(grandeImage(fond))}</section>
-        <section class="connexion-panneau" aria-labelledby="titre-connexion">
-          <h1 id="titre-connexion">${mode === 'inscription' ? 'Crée ton compte' : 'Content de te revoir'}</h1>
-          <p class="connexion-pourquoi">${mode === 'inscription'
-            ? 'Ton journal te suit sur ton téléphone comme sur ton PC, et chaque jeu que tu notes affine les prochaines propositions.'
-            : 'Connecte-toi pour retrouver ton journal et tes envies.'}</p>
-          <div class="onglets" role="tablist" aria-label="Connexion ou inscription">
-            <a role="tab" href="#/connexion?mode=connexion" aria-selected="${mode === 'connexion'}">Se connecter</a>
-            <a role="tab" href="#/connexion?mode=inscription" aria-selected="${mode === 'inscription'}">Créer un compte</a>
-          </div>
-          <div class="fournisseurs">
-            <button class="btn" type="button" data-fournisseur="Steam">Continuer avec Steam</button>
-            <button class="btn" type="button" data-fournisseur="Discord">Continuer avec Discord</button>
-            <button class="btn" type="button" data-fournisseur="Google">Continuer avec Google</button>
-          </div>
-          <p class="note-fournisseur" id="note-fournisseur" role="status"></p>
-          <p class="separateur"><span>ou avec ton e-mail</span></p>
-          <form id="form-compte" novalidate>
-            ${mode === 'inscription' ? `<div class="champ-form"><label for="c-pseudo">Pseudo</label><input id="c-pseudo" autocomplete="username" maxlength="20" aria-describedby="e-pseudo"><p class="erreur" id="e-pseudo"></p></div>` : ''}
-            <div class="champ-form"><label for="c-email">E-mail</label><input id="c-email" type="email" autocomplete="email" aria-describedby="e-email"><p class="erreur" id="e-email"></p></div>
-            <div class="champ-form"><label for="c-mdp">Mot de passe</label>
-              <div class="mdp"><input id="c-mdp" type="password" autocomplete="${mode === 'inscription' ? 'new-password' : 'current-password'}" aria-describedby="e-mdp a-mdp"><button type="button" class="voir-mdp" aria-pressed="false">Afficher</button></div>
-              <p class="aide-champ" id="a-mdp">${mode === 'inscription' ? '8 caractères minimum.' : ''}</p>
-              <p class="erreur" id="e-mdp"></p></div>
-            <button class="btn principal large" type="submit">${mode === 'inscription' ? 'Créer mon compte' : 'Me connecter'}</button>
-          </form>
-          <p class="demo-note">Prototype : aucun compte n'est vraiment créé et ton mot de passe n'est enregistré nulle part. Seuls ton pseudo et ton e-mail restent sur cet appareil.</p>
-        </section>
-      </div>`;
-    $('.voir-mdp').addEventListener('click', (e) => {
-      const champ = $('#c-mdp');
-      const visible = champ.type === 'password';
-      champ.type = visible ? 'text' : 'password';
-      e.currentTarget.textContent = visible ? 'Masquer' : 'Afficher';
-      e.currentTarget.setAttribute('aria-pressed', String(visible));
-    });
-    $$('[data-fournisseur]').forEach((b) => b.addEventListener('click', () => {
-      $('#note-fournisseur').textContent = `Dans la vraie version, ce bouton ouvre la page de connexion ${b.dataset.fournisseur}${b.dataset.fournisseur === 'Steam' ? " et propose d'importer ta bibliothèque" : ''}. Pour le prototype, utilise ton e-mail.`;
-    }));
-    $('#form-compte').addEventListener('submit', (e) => {
-      e.preventDefault();
-      const erreurs = {};
-      const email = $('#c-email').value.trim();
-      const mdp = $('#c-mdp').value;
-      const pseudo = mode === 'inscription' ? $('#c-pseudo').value.trim() : email.split('@')[0];
-      if (mode === 'inscription' && !/^[\p{L}\p{N}_.-]{3,20}$/u.test(pseudo)) erreurs.pseudo = 'Entre 3 et 20 caractères : lettres, chiffres, point, tiret ou tiret bas.';
-      if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) erreurs.email = 'Cette adresse e-mail ne semble pas complète.';
-      if (mode === 'inscription' ? mdp.length < 8 : !mdp) erreurs.mdp = mode === 'inscription' ? 'Il faut au moins 8 caractères.' : 'Entre ton mot de passe.';
-      ['pseudo', 'email', 'mdp'].forEach((k) => {
-        const zone = $('#e-' + k);
-        const champ = $('#c-' + k);
-        if (zone) zone.textContent = erreurs[k] || '';
-        if (champ) champ.setAttribute('aria-invalid', String(!!erreurs[k]));
-      });
-      const premier = ['pseudo', 'email', 'mdp'].find((k) => erreurs[k]);
-      if (premier) { $('#c-' + premier).focus(); return; }
-      compte = { pseudo, email, depuis: new Date().toISOString() };
-      ecrireLocal(CLE_COMPTE, compte);
-      majEntete();
-      toast(mode === 'inscription' ? `Bienvenue, ${pseudo}. Ton journal est rattaché à ton compte.` : `Content de te revoir, ${pseudo}.`);
-      location.hash = params.get('retour') ? '#' + params.get('retour') : '#/journal';
-    });
-    return mode === 'inscription' ? 'Créer un compte' : 'Se connecter';
-  }
-
   /* ---------- Mon journal ---------- */
   function pageJournal() {
     const finis = Object.entries(journal.finis).filter(([id]) => PAR_ID[id]).sort((a, b) => (b[1].date || '').localeCompare(a[1].date || ''));
     const envies = journal.envies.map((id) => PAR_ID[id]).filter(Boolean);
-    const bandeau = compte
-      ? `<p class="bandeau-compte">Connecté : <b>${esc(compte.pseudo)}</b> <button class="lien-bouton" type="button" id="deconnexion">Se déconnecter</button></p>`
-      : `<p class="bandeau-compte">Ton journal est gardé sur cet appareil. <a href="#/connexion?mode=inscription&amp;retour=/journal">Crée un compte</a> pour le retrouver partout.</p>`;
+    // Pas de compte : le journal vit sur l'appareil. Pour changer de téléphone, on le sauvegarde dans un fichier.
+    const plein = Object.keys(journal.finis).length || journal.envies.length;
+    const bandeau = `<div class="bandeau-compte sauvegarde">
+        <p>Ton journal reste sur cet appareil, rien n'est envoyé nulle part.${plein ? ' Pour le retrouver sur un autre téléphone ou ordinateur, sauvegarde-le dans un fichier et reprends-le là-bas.' : ' Tu en as un sur un autre appareil ? Reprends sa sauvegarde.'}</p>
+        <div class="sauvegarde-actions">${plein ? '<button class="btn discret" type="button" id="sauver-journal">Sauvegarder mon journal</button>' : ''}<label class="btn discret" for="reprendre-journal">Reprendre une sauvegarde</label><input type="file" id="reprendre-journal" accept=".json,application/json" hidden></div>
+      </div>`;
     if (!finis.length && !envies.length) {
-      main.innerHTML = `<div class="wrap"><div class="page-tete"><h1>Mon journal</h1>${bandeau}<p style="color:var(--texte-2);max-width:560px">Il est vide pour l'instant. Commence par le dernier jeu que tu as fini : on te demande ce que tu en as pensé, et on te propose le suivant.</p><div style="max-width:640px;margin-top:12px">${champJeu('journal-q', 'Le dernier jeu que tu as fini', 'Le dernier jeu que tu as fini')}</div></div></div>`;
-      autocomplete($('#journal-q'), $('#journal-q-liste'), (g) => { location.hash = '#/fini/' + g.id; }, 'fini');
-      brancherDeconnexion();
+      main.innerHTML = `<div class="wrap"><div class="page-tete"><h1>Mon journal</h1><p style="color:var(--texte-2);max-width:560px">Il est vide pour l'instant. Commence par le dernier jeu que tu as fini : on te demande ce que tu en as pensé, et on te propose le suivant.</p><div style="max-width:640px;margin:12px 0 40px">${champJeu('journal-q', 'Le dernier jeu que tu as fini', 'Le dernier jeu que tu as fini')}</div>${bandeau}</div></div>`;
+      autocomplete($('#journal-q'), $('#journal-q-liste'), (g) => { aller('/fini/' + g.id); }, 'fini');
+      brancherSauvegarde();
       return 'Mon journal';
     }
     const recents = finis.filter(([, e]) => !e.avant);
@@ -2541,19 +2578,103 @@
       b.textContent = 'Confirmer : tout effacer';
       b.classList.remove('discret');
     });
-    brancherDeconnexion();
+    brancherSauvegarde();
     return 'Mon journal';
   }
-  function brancherDeconnexion() {
-    const d = $('#deconnexion');
-    if (!d) return;
-    d.addEventListener('click', () => {
-      compte = null;
-      ecrireLocal(CLE_COMPTE, null);
-      majEntete();
-      toast('Tu es déconnecté. Ton journal reste sur cet appareil.');
+  // Sauvegarder : un petit fichier (sur téléphone, le menu de partage permet de se l'envoyer).
+  // Reprendre : on ajoute ce qu'il contient au journal de cet appareil, sans rien effacer.
+  function brancherSauvegarde() {
+    const s = $('#sauver-journal'), r = $('#reprendre-journal');
+    if (s) s.addEventListener('click', async () => {
+      const jour = new Date().toISOString().slice(0, 10);
+      const nom = `journal-nouvelle-partie-${jour}.json`;
+      const fichier = new File([JSON.stringify({ site: 'Nouvelle Partie +', version: 1, date: jour, journal }, null, 1)], nom, { type: 'application/json' });
+      try {
+        if (tactile.matches && navigator.canShare && navigator.canShare({ files: [fichier] })) { await navigator.share({ files: [fichier], title: 'Mon journal Nouvelle Partie +' }); return; }
+      } catch (e) { if (e && e.name === 'AbortError') return; }
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(fichier);
+      a.download = nom;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+      toast('Journal sauvegardé dans tes téléchargements.');
+    });
+    if (r) r.addEventListener('change', async () => {
+      const f = r.files && r.files[0];
+      if (!f) return;
+      let d;
+      try { d = JSON.parse(await f.text()); } catch (e) { d = null; }
+      const j = d && d.journal;
+      if (!j || typeof j.finis !== 'object' || !Array.isArray(j.envies)) { toast("Ce fichier n'est pas une sauvegarde de journal."); r.value = ''; return; }
+      let ajoutes = 0;
+      Object.entries(j.finis).forEach(([id, e]) => {
+        if (!PAR_ID[id] || !e || typeof e !== 'object') return;
+        const ici = journal.finis[id];
+        if (!ici) ajoutes += 1;
+        // Le même jeu des deux côtés : on garde l'avis le plus récent.
+        if (!ici || (e.date || '') > (ici.date || '')) journal.finis[id] = e;
+      });
+      j.envies.forEach((id) => { if (PAR_ID[id] && !journal.envies.includes(id) && !journal.finis[id]) { journal.envies.push(id); ajoutes += 1; } });
+      (j.passes || []).forEach((id) => { if (!journal.passes.includes(id)) journal.passes.push(id); });
+      sauver();
+      toast(ajoutes ? `Sauvegarde reprise : ${nb(ajoutes)} ${pl(ajoutes, 'jeu ajouté', 'jeux ajoutés')} à ton journal.` : 'Sauvegarde reprise : ton journal avait déjà tout.');
       rendre();
     });
+  }
+
+  /* ---------- Pages d'information : sources, confidentialité, mentions légales ---------- */
+  const ecrire = CONTACT ? `<a href="mailto:${CONTACT}">${CONTACT}</a>` : '';
+  function pageInfo(titre, corps) {
+    main.innerHTML = `<div class="wrap"><article class="page-info"><h1>${titre}</h1>${corps}</article></div>`;
+    return titre;
+  }
+  function pageSources() {
+    const dCat = CAT ? dateFr(CAT.date) : '', dAbo = ABO ? dateFr(ABO.date) : '';
+    return pageInfo('Sources et crédits', `
+      <h2>D'où viennent les infos</h2>
+      <p><b>Le catalogue</b>${CAT ? ` (${nb(TOUS.length)} jeux, mis à jour le ${dCat})` : ''} vient d'<a href="https://www.igdb.com" target="_blank" rel="noopener">IGDB.com</a>, la base de données de jeux de Twitch : titres, dates de sortie, machines, genres, séries, jaquettes et captures.</p>
+      <p><b>Les notes sur 100</b> sont la moyenne des notes de joueurs et de critiques recensées par IGDB. Sous 5 notes, on n'affiche rien.</p>
+      <p><b>Les durées</b> sont estimées à partir des temps de jeu recensés par IGDB. « Histoire » se situe entre le temps de ceux qui foncent et celui des joueurs qui prennent leur temps. Elles restent indicatives, et on corrige à la main celles qui sont fausses.</p>
+      <p><b>Les présentations</b> sont le texte français de l'éditeur (publié sur Steam) ou le début de l'article Wikipédia, toujours signalés sous le texte. Sans texte français, pas de résumé : jamais de traduction automatique.</p>
+      ${ABO ? `<p><b>Game Pass</b> : liste du catalogue Xbox France du ${dAbo}. Les jeux entrent et sortent du Game Pass tous les mois : vérifie avant de t'abonner.</p>` : ''}
+      <p><b>« Gratuit »</b> n'est affiché que quand Steam ou IGDB l'indiquent, vérifié à la main pour les jeux connus. Un premier épisode offert ou une démo ne comptent pas.</p>
+      <h2>Comment on choisit les jeux qu'on te propose</h2>
+      <p>Pas de publicité, et aucun jeu n'a payé pour apparaître. Le site compare les jeux entre eux : ce qui les définit (une usine à construire, des énigmes, un combat au tour par tour), la façon d'y jouer (seul, à deux, contre d'autres), la durée, l'époque et la notoriété. Il écarte les jeux fermés, pas encore sortis, ou que tu as déjà joués.</p>
+      <p>Les « suites conseillées » et les « points forts » de certains jeux sont écrits par nous. « Plutôt pour se détendre » et les autres humeurs sont estimées d'après le genre du jeu, en attendant les avis des joueurs.</p>
+      <h2>Une erreur ?</h2>
+      <p>Une durée fausse, un mauvais genre, un jeu qui n'a rien à faire dans une liste : ça arrive avec ${CAT ? nb(TOUS.length) : 'des milliers de'} jeux, et on veut le savoir.${ecrire ? ` Écris-nous à ${ecrire}, on corrige.` : ''}</p>
+      <h2>Merci</h2>
+      <p>À <a href="https://www.igdb.com" target="_blank" rel="noopener">IGDB</a> et à ses contributeurs, aux auteurs de <a href="https://fr.wikipedia.org" target="_blank" rel="noopener">Wikipédia</a>, et aux studios qui font les jeux dont on parle ici.</p>`);
+  }
+  function pageConfidentialite() {
+    return pageInfo('Confidentialité', `
+      <h2>En bref</h2>
+      <p>Pas de compte, pas de cookie, pas de publicité, pas de mesure d'audience. On ne sait pas qui tu es et on ne cherche pas à le savoir.</p>
+      <h2>Ton journal</h2>
+      <p>Les jeux que tu as finis, tes avis et tes envies sont enregistrés dans ton navigateur, sur ton appareil. Ils ne sont envoyés nulle part : nous ne les voyons pas. Tu peux tout effacer depuis <a href="#/journal">Mon journal</a> (« Tout effacer »), ou en supprimant les données de ce site dans les réglages de ton navigateur.</p>
+      <p>« Sauvegarder mon journal » crée un fichier sur ton appareil. Il reste à toi : tu en fais ce que tu veux.</p>
+      <h2>Ce que ton navigateur contacte</h2>
+      <p>Comme pour n'importe quel site, ces services voient ton adresse IP quand ton navigateur leur demande quelque chose :</p>
+      <ul>
+        <li>GitHub, qui héberge le site et garde des journaux techniques pour sa sécurité (<a href="https://docs.github.com/fr/site-policy/privacy-policies/github-general-privacy-statement" target="_blank" rel="noopener">sa politique de confidentialité</a>) ;</li>
+        <li>les serveurs d'images d'IGDB (images.igdb.com) et de Steam (steamstatic.com), pour les jaquettes et les captures.</li>
+      </ul>
+      <p>Les polices d'écriture sont chez nous : rien n'est demandé à Google. Quand tu ouvres un lien vers Wikipédia, Steam ou IGDB, ce sont leurs règles qui s'appliquent.</p>
+      ${ecrire ? `<h2>Une question</h2><p>${ecrire}</p>` : ''}`);
+  }
+  function pageMentions() {
+    return pageInfo('Mentions légales', `
+      <h2>Éditeur</h2>
+      <p>Nouvelle Partie + est un site personnel, sans publicité et sans but commercial, tenu par un joueur. Comme la loi le permet pour un site non professionnel (article 6, III, 2 de la loi n° 2004-575 du 21 juin 2004 pour la confiance dans l'économie numérique), son éditeur ne publie pas son nom : il l'a communiqué à l'hébergeur.</p>
+      ${ecrire ? `<p>Pour nous écrire : ${ecrire}</p>` : ''}
+      <h2>Hébergement</h2>
+      <p>GitHub Pages, un service de GitHub, Inc., 88 Colin P. Kelly Jr. Street, San Francisco, CA 94107, États-Unis.</p>
+      <h2>Les jeux, leurs noms et leurs images</h2>
+      <p>Les noms, logos, jaquettes et captures des jeux appartiennent à leurs éditeurs et ayants droit. Ils sont montrés ici pour présenter les jeux. Un ayant droit qui souhaite le retrait d'un élément peut nous écrire : il sera retiré rapidement.</p>
+      <h2>Les textes</h2>
+      <p>Les présentations signalées « texte de l'éditeur » sont publiées par les éditeurs des jeux sur Steam. Les extraits de Wikipédia sont sous licence <a href="https://creativecommons.org/licenses/by-sa/4.0/deed.fr" target="_blank" rel="noopener">Creative Commons Attribution, partage dans les mêmes conditions 4.0</a> : chacun renvoie à son article, et nos extraits raccourcis restent sous la même licence. Le reste du site est écrit par Nouvelle Partie +.</p>
+      <p>Les données des jeux viennent d'<a href="https://www.igdb.com" target="_blank" rel="noopener">IGDB.com</a>. Voir aussi <a href="#/sources">Sources et crédits</a>.</p>`);
   }
 
   function introuvable() {
@@ -2562,18 +2683,67 @@
   }
 
   /* ---------- Navigation ---------- */
-  const ROUTES = { '': accueil, jeu: fiche, fini, envie, explorer, recherche, journal: pageJournal, connexion };
+  // « jeu/hades », « jeu/i426 », « jeu/final-fantasy-vi-426 » : on retrouve le jeu dans les trois cas.
+  const jeuDe = (morceau) => {
+    if (!morceau) return null;
+    if (PAR_ID[morceau]) return PAR_ID[morceau];
+    const m = /-(\d+)$/.exec(morceau);
+    return m && DEPUIS_IGDB[m[1]] ? PAR_ID[DEPUIS_IGDB[m[1]]] : null;
+  };
+  const morceauJeu = (j) => (CHEMINS ? `${slug(j.titre)}-${j.igdb || String(j.id).replace(/^i/, '')}` : j.id);
+  // « #/jeu/i426?x » → l'adresse affichée (« /jeu/final-fantasy-vi-426?x » en ligne)
+  function adresse(route) {
+    route = route.replace(/^#/, '');
+    if (!CHEMINS) return '#' + route;
+    route = route.replace(/^\/(jeu|fini)\/([^/?#]+)/, (t, page, id) => { const j = PAR_ID[id]; return j ? `/${page}/${morceauJeu(j)}` : t; });
+    return BASE + route.replace(/^\//, '');
+  }
+  function routeCourante() {
+    if (!CHEMINS) return location.hash.replace(/^#/, '') || '/';
+    let p = decodeURIComponent(location.pathname);
+    p = p.startsWith(BASE) ? '/' + p.slice(BASE.length) : p;
+    return (p.replace(/index\.html$/, '').replace(/\/+$/, '') || '/') + location.search;
+  }
+  function aller(route, remplacer) {
+    if (!CHEMINS) { if (remplacer) location.replace(adresse(route)); else location.hash = route.replace(/^#/, ''); return; }
+    history[remplacer ? 'replaceState' : 'pushState'](null, '', adresse(route));
+    naviguer();
+  }
+  // L'adresse suit les choix (envie, filtres), sans créer une page de plus dans l'historique.
+  const majAdresse = (route) => history.replaceState(null, '', adresse(route));
+  // Tous les liens « #/… » écrits dans les pages deviennent de vraies adresses en ligne.
+  function adresserLiens(racine) {
+    if (!CHEMINS || !racine) return;
+    (racine.matches && racine.matches('a[href^="#/"]') ? [racine] : []).concat($$('a[href^="#/"]', racine)).forEach((a) => { a.setAttribute('href', adresse(a.getAttribute('href'))); });
+  }
+  // L'adresse canonique et la description, pour Google et les aperçus de partage.
+  function majTetePage(titre, description) {
+    if (!CHEMINS) return;
+    let c = document.querySelector('link[rel="canonical"]');
+    if (!c) { c = document.createElement('link'); c.rel = 'canonical'; document.head.appendChild(c); }
+    const r = routeCourante().split('?')[0];
+    c.href = location.origin + adresse(r === '/' ? '/' : r);
+    const d = document.querySelector('meta[name="description"]');
+    if (d && description) d.content = description;
+  }
+
+  const ROUTES = { '': accueil, jeu: fiche, fini, envie, explorer, recherche, journal: pageJournal, sources: pageSources, confidentialite: pageConfidentialite, 'mentions-legales': pageMentions };
   let jetonRendu = 0;
+  let descriptionPage = '';
 
   async function rendre() {
+    performance.mark('np-rendre');
     const moi = ++jetonRendu;
-    const brut = location.hash.replace(/^#/, '') || '/';
+    const brut = routeCourante();
     const [chemin, qs] = brut.split('?');
     const morceaux = chemin.split('/').filter(Boolean);
     const page = ROUTES[morceaux[0] || ''] || introuvable;
     const titre = await page(morceaux.slice(1), new URLSearchParams(qs || ''));
     if (moi !== jetonRendu) return;
     document.title = (titre ? titre + ' · ' : '') + 'Nouvelle Partie +';
+    adresserLiens(document.body);
+    majTetePage(titre, descriptionPage);
+    descriptionPage = '';
     $$('a[data-nav]').forEach((a) => { if (a.dataset.nav === (morceaux[0] || '')) a.setAttribute('aria-current', 'page'); else a.removeAttribute('aria-current'); });
     fermerRecherche();
     activerLampes();
@@ -2639,10 +2809,36 @@
   const dateFr = (iso) => (iso ? iso.split('-').reverse().join('/') : '');
   if (CAT) $('#credit-donnees').textContent = `Catalogue : IGDB.com (${nb(TOUS.length)} jeux, mis à jour le ${dateFr(CAT.date)}).${window.TEXTES_FR ? ' Présentations : éditeurs (Steam) et Wikipédia (CC BY-SA).' : ''}${ABO ? ` Game Pass : liste Xbox France du ${dateFr(ABO.date)}.` : ''}`;
   // Pour les tests automatiques (outils/), sans effet sur le site.
-  window.__np = { TOUS, PAR_ID, filtrer, comprendre, proximite, voisins, oeuvre: (c) => oeuvre(c), recommander: (b, e) => recommander(b, e) };
-  autocomplete($('#q'), $('#q-liste'), (j) => { $('#q').value = ''; location.hash = '#/jeu/' + j.id; });
-  window.addEventListener('hashchange', () => { if (!location.hash.startsWith('#/recherche')) $('#q').value = ''; });
-  window.addEventListener('hashchange', naviguer);
+  window.__np = { etatApresBoucle, TOUS, PAR_ID, filtrer, comprendre, proximite, voisins, oeuvre: (c) => oeuvre(c), recommander: (b, e) => recommander(b, e), pagePourGoogle, adresse, CHEMINS };
+  autocomplete($('#q'), $('#q-liste'), (j) => { $('#q').value = ''; aller('/jeu/' + j.id); });
+  const changement = () => { if (!routeCourante().startsWith('/recherche')) $('#q').value = ''; naviguer(); };
+  if (CHEMINS) {
+    // Une vieille adresse en « # » (partagée avant) : on la convertit.
+    if (location.hash.startsWith('#/')) history.replaceState(null, '', adresse(location.hash.slice(1)));
+    window.addEventListener('popstate', changement);
+    // Les liens internes ne rechargent pas la page.
+    document.addEventListener('click', (e) => {
+      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      const a = e.target.closest('a[href]');
+      if (!a || (a.target && a.target !== '_self') || a.hasAttribute('download')) return;
+      const href = a.getAttribute('href');
+      if (href.startsWith('#') && !href.startsWith('#/')) {
+        // Une ancre dans la page (« Aller au contenu »)
+        const cible = document.getElementById(href.slice(1));
+        if (cible) { e.preventDefault(); cible.focus({ preventScroll: true }); cible.scrollIntoView(); }
+        return;
+      }
+      if (href.startsWith('mailto:')) return;
+      const u = new URL(a.href, location.href);
+      if (u.origin !== location.origin || !u.pathname.startsWith(BASE)) return;
+      e.preventDefault();
+      if (u.pathname + u.search === location.pathname + location.search) return;
+      history.pushState(null, '', u.pathname + u.search);
+      changement();
+    });
+    // Les liens ajoutés après coup (suggestions, « plus de résultats »)
+    new MutationObserver((ms) => ms.forEach((m) => m.addedNodes.forEach((n) => { if (n.nodeType === 1) adresserLiens(n); }))).observe(document.body, { childList: true, subtree: true });
+  } else window.addEventListener('hashchange', changement);
   lampeGlobale();
   majEntete();
   naviguer();
